@@ -38,7 +38,8 @@ final class SessionCoordinator: ObservableObject {
     @Published var availableFixtures: [ReplayFixtureItemDTO] = []
     @Published var selectedReplayFixture: ReplayFixtureItemDTO?
     @Published var activeReplayVideoURL: URL?
-    @Published var useSynchronizedGlassesAudio: Bool = false
+    /// Prefer Meta glasses PCM (DAT) + HFP for listening to the person in front.
+    @Published var useSynchronizedGlassesAudio: Bool = true
     @Published var configuredBackendURL: String = ""
 
     let glassesCoordinator: GlassesWearablesCoordinator
@@ -52,6 +53,10 @@ final class SessionCoordinator: ObservableObject {
     private var deliveredResultIDs: Set<String> = []
     private var analysisTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
+    private var speechDebounce: Task<Void, Never>?
+    private var pendingPayload: SessionAnalyzeRequestDTO?
+    private var simulatedUtterances: [UtteranceSegmentDTO] = []
+    private var frameProcessing = false
     private var turnSequence: Int = 0
 
     init(
@@ -79,6 +84,18 @@ final class SessionCoordinator: ObservableObject {
                 await self?.runLiveDeviceMetaLinkAndBackendProbe()
             }
         }
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--live-audio-check") {
+            Task { @MainActor in
+                for _ in 0..<12 where !self.glassesCoordinator.hasEligibleGlasses {
+                    try? await Task.sleep(for: .milliseconds(250))
+                }
+                await startOrReturnToSession()
+                let route = AVAudioSession.sharedInstance().currentRoute
+                print("[Sherlocked] live audio check \(sessionID), input \(route.inputs.map(\.portType.rawValue)), output \(route.outputs.map(\.portType.rawValue))")
+            }
+        }
+        #endif
     }
 
     func runLiveDeviceMetaLinkAndBackendProbe() async {
@@ -129,7 +146,10 @@ final class SessionCoordinator: ObservableObject {
 
         glassesCoordinator.onGlassesAudioDelivered = { [weak self] pcm in
             Task { @MainActor [weak self] in
-                self?.audioEngine.consumeExternalGlassesPCM(pcm)
+                guard let self else { return }
+                // Never mix DAT glasses PCM into recognition when the user forced iPhone mic.
+                if UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") { return }
+                self.audioEngine.consumeExternalGlassesPCM(pcm)
             }
         }
 
@@ -142,12 +162,23 @@ final class SessionCoordinator: ObservableObject {
             }
         }
 
+        audioEngine.$livePartialTranscript.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
+        audioEngine.$recognitionIssue.sink { [weak self] message in
+            if let message {
+                self?.recoveryBannerMessage = message
+            } else if self?.recoveryBannerMessage?.hasPrefix("Speech recognition is reconnecting.") == true {
+                self?.recoveryBannerMessage = nil
+            }
+        }.store(in: &cancellables)
+
         audioEngine.$currentRoute
             .receive(on: RunLoop.main)
             .sink { [weak self] newRoute in
                 guard let self else { return }
                 // If private playback route disappears while a cue exists, surface it on screen!
-                if !newRoute.isPrivate, let cue = self.latestResponse?.spoken_cue_text, self.isSessionActive {
+                if !newRoute.isPrivate, self.onScreenCueBanner == nil, let cue = self.latestResponse?.spoken_cue_text, self.isSessionActive {
                     self.onScreenCueBanner = cue
                 }
             }
@@ -188,6 +219,7 @@ final class SessionCoordinator: ObservableObject {
 
         sessionID = "live_\(UUID().uuidString.prefix(8))"
         sessionStartMonotonic = CACurrentMediaTime()
+        simulatedUtterances.removeAll()
         turnSequence = 0
         collectedFrames.removeAll()
         faceTracker.reset()
@@ -204,8 +236,11 @@ final class SessionCoordinator: ObservableObject {
 
         // 1. Request Permissions (if undetermined) & Start Microphone + Live Speech Recognition
         let perms = await audioEngine.requestPermissions()
-        if !perms.mic {
-            recoveryBannerMessage = "Enable Microphone access in Settings so Sherlocked can listen."
+        guard isSessionActive else { return }
+        if !perms.speech || !perms.mic {
+            recoveryBannerMessage = "Enable Microphone and Speech Recognition in Settings to start live transcription."
+            stopSession()
+            return
         } else {
             do {
                 try audioEngine.startLiveCapture(
@@ -221,21 +256,24 @@ final class SessionCoordinator: ObservableObject {
                     },
                     onUtteranceCommitted: { [weak self] in
                         Task { @MainActor [weak self] in
-                            self?.scheduleTurnAnalysis()
+                            self?.scheduleSpeechUpdate()
                         }
                     }
                 )
             } catch {
-                recoveryBannerMessage = "Audio setup note: \(error.localizedDescription)"
+                recoveryBannerMessage = error.localizedDescription
+                stopSession()
+                return
             }
         }
 
         // 2. Start Intended Camera Source (Glasses primary -> seamless iPhone camera fallback while keeping Glasses HFP audio!)
         if useGlasses {
             do {
+                let forcePhoneMic = UserDefaults.standard.bool(forKey: "sherlocked_phone_mic")
                 try await glassesCoordinator.startGlassesCapture(
                     sessionStartClock: sessionStartMonotonic,
-                    enableSynchronizedGlassesAudio: useSynchronizedGlassesAudio
+                    enableSynchronizedGlassesAudio: useSynchronizedGlassesAudio && !forcePhoneMic
                 )
             } catch {
                 captureSource = .iphone
@@ -270,7 +308,21 @@ final class SessionCoordinator: ObservableObject {
     private func ingestLiveVideoFrame(_ image: UIImage, timestampSec: Double) {
         guard isSessionActive else { return }
         latestPreviewImage = image
-        let sample = faceTracker.processFrame(image: image, sessionTimestampSec: timestampSec)
+        guard !frameProcessing else { return }
+        frameProcessing = true
+        let sid = sessionID
+        let tracker = faceTracker
+        Task {
+            let sample = await Task.detached(priority: .userInitiated) {
+                tracker.processFrame(image: image, sessionTimestampSec: timestampSec)
+            }.value
+            frameProcessing = false
+            guard isSessionActive, sessionID == sid else { return }
+            acceptFrame(sample)
+        }
+    }
+
+    private func acceptFrame(_ sample: FrameSampleDTO) {
         effectiveFPS = (faceTracker.effectiveFPS * 10).rounded() / 10
         collectedFrames.append(sample)
         if collectedFrames.count > 240 {
@@ -289,8 +341,8 @@ final class SessionCoordinator: ObservableObject {
 
         hasPlayedReadyCue = true
         statusLabel = "Listening for context"
-        let spokePrivately = audioEngine.speakCuePrivatelyIfPermitted("Sherlocked is listening", forceReadyCue: audioEngine.currentRoute.isPrivate)
-        if !spokePrivately {
+        let spokePrivately = audioEngine.speakCuePrivatelyIfPermitted("Sherlocked is listening")
+        if !spokePrivately && onScreenCueBanner == nil {
             onScreenCueBanner = "Sherlocked is listening"
         }
     }
@@ -306,7 +358,7 @@ final class SessionCoordinator: ObservableObject {
             let w0 = startSec + Double(idx) * dur
             return WordTimestampDTO(word: String(tok), start_sec: w0, end_sec: w0 + dur)
         }
-        var current = audioEngine.utterances
+        var current = simulatedUtterances
         let pause = max(0.0, startSec - (current.last?.end_sec ?? 0.0))
         current.append(
             UtteranceSegmentDTO(
@@ -318,12 +370,15 @@ final class SessionCoordinator: ObservableObject {
                 words: words
             )
         )
+        simulatedUtterances = current
         scheduleTurnAnalysis(overrideUtterances: current)
     }
 
     // MARK: - Stop & Cancellation
 
     func cancelInFlightAnalysis() {
+        speechDebounce?.cancel()
+        pendingPayload = nil
         analysisTask?.cancel()
         analysisTask = nil
         isAnalyzing = false
@@ -331,6 +386,8 @@ final class SessionCoordinator: ObservableObject {
     }
 
     func stopSession() {
+        speechDebounce?.cancel()
+        pendingPayload = nil
         analysisTask?.cancel()
         analysisTask = nil
         isAnalyzing = false
@@ -349,6 +406,16 @@ final class SessionCoordinator: ObservableObject {
 
     // MARK: - Shared Pipeline Turn Execution
 
+    private func scheduleSpeechUpdate() {
+        speechDebounce?.cancel()
+        speechDebounce = Task {
+            // Keep turns snappy for live glasses sessions while still coalescing partial ASR.
+            try? await Task.sleep(for: .milliseconds(280))
+            guard !Task.isCancelled, isSessionActive else { return }
+            scheduleTurnAnalysis()
+        }
+    }
+
     func scheduleTurnAnalysis(
         requestFollowups: Bool = false,
         isFollowupRound: Bool = false,
@@ -357,10 +424,9 @@ final class SessionCoordinator: ObservableObject {
         let utts = overrideUtterances ?? audioEngine.utterances
         guard !utts.isEmpty else { return }
 
-        analysisTask?.cancel()
         turnSequence += 1
         let turnID = "turn_\(turnSequence)"
-        let framesSnapshot = Array(collectedFrames.suffix(90))
+        let framesSnapshot = Array(collectedFrames.suffix(72))
         let fpsSnapshot = effectiveFPS > 0 ? effectiveFPS : 24.0
         let routeSnapshot = audioEngine.currentRoute
         let sourceSnapshot = captureSource
@@ -381,18 +447,23 @@ final class SessionCoordinator: ObservableObject {
             frames: framesSnapshot
         )
 
+        pendingPayload = payload
+        guard analysisTask == nil else { return }
         isAnalyzing = true
         analysisTask = Task { [weak self] in
             guard let self else { return }
-            do {
-                let response = try await apiClient.analyzeTurn(payload)
-                try Task.checkCancellation()
-                self.applyAnalysisResponse(response)
-            } catch is CancellationError {
-                // Clean cancellation
-            } catch {
-                self.recoveryBannerMessage = error.localizedDescription
+            while let next = pendingPayload {
+                pendingPayload = nil
+                do {
+                    let response = try await apiClient.analyzeTurn(next)
+                    guard !Task.isCancelled, sessionID == next.session_id else { return }
+                    applyAnalysisResponse(response)
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    recoveryBannerMessage = error.localizedDescription
+                }
             }
+            analysisTask = nil
             self.isAnalyzing = false
         }
     }
@@ -407,23 +478,23 @@ final class SessionCoordinator: ObservableObject {
         }
 
         // Enforce client-side + server-side idempotent result_id deduplication: never replay a private cue!
-        let isNewResult = !deliveredResultIDs.contains(response.result_id) && !response.already_delivered
-        if isNewResult {
-            deliveredResultIDs.insert(response.result_id)
-        }
-
-        guard isNewResult, let cue = response.spoken_cue_text, !cue.isEmpty else {
-            return
-        }
-
-        if response.should_speak_privately && audioEngine.currentRoute.isPrivate {
-            let played = audioEngine.speakCuePrivatelyIfPermitted(cue)
-            if !played {
-                onScreenCueBanner = cue
+        guard isSessionActive, response.session_id == sessionID else { return }
+        var cue = response.spoken_cue_text
+        var key = response.result_id
+        if let guess = response.initial_guess, response.activity == .game,
+           response.updated_guess == nil, response.revealed_lie_story_number == nil {
+            // A previous response may have been lost after the server locked the guess.
+            cue = guess.spoken_whisper
+            if let story = response.stories.first(where: { $0.story_number == guess.chosen_story_number }) {
+                let opening = story.transcript.split(separator: " ").prefix(10).joined(separator: " ")
+                if !opening.isEmpty { cue = guess.spoken_whisper + " The one starting: " + opening }
             }
-        } else if response.present_cue_on_screen || !audioEngine.currentRoute.isPrivate {
-            onScreenCueBanner = cue
+            key = "\(sessionID)/\(response.activity_epoch)/initial"
         }
+        guard let cue, !cue.isEmpty, deliveredResultIDs.insert(key).inserted else { return }
+        onScreenCueBanner = cue
+        _ = audioEngine.speakCuePrivatelyIfPermitted(cue)
+
     }
 
     // MARK: - Replay & Face-Masked Comparison

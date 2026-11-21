@@ -2,8 +2,29 @@ import AVFoundation
 import Foundation
 import Speech
 
+// Apple's input tap runs on an audio thread. Swap recognition requests without
+// reinstalling the tap or mixing glasses PCM with the local microphone.
+private final class SpeechInput: @unchecked Sendable {
+    private let lock = NSLock()
+    private var request: SFSpeechAudioBufferRecognitionRequest?
+    private var external = false
+
+    func replace(_ next: SFSpeechAudioBufferRecognitionRequest?, external: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        request = next
+        self.external = external
+    }
+
+    func append(_ buffer: AVAudioPCMBuffer, external: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if self.external == external { request?.append(buffer) }
+    }
+}
+
 @MainActor
-final class AudioAndSpeechEngine: NSObject, ObservableObject {
+final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     @Published private(set) var currentRoute: AudioRouteKind = .speakerPublic
     @Published private(set) var isMicrophoneFlowing: Bool = false
     @Published private(set) var livePartialTranscript: String = ""
@@ -19,14 +40,24 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
     private var interruptionObserver: NSObjectProtocol?
 
     private var sessionStartClock: TimeInterval = 0
-    private var lastCommittedWordCount: Int = 0
-    private var lastSegmentEndSec: Double = 0.0
+    private let speechInput = SpeechInput()
+    private var completedUtterances: [UtteranceSegmentDTO] = []
+    private var offset: Double = 0
+    private var generation = UUID()
+    private var tapInstalled = false
+    private var external = false
+    private var retryTask: Task<Void, Never>?
+    @Published private(set) var inputName = ""
+    @Published private(set) var recognitionIssue: String?
+
     private var pairedGlassesHint: Bool = false
     private var onFirstAudioDelivered: (() -> Void)?
     private var onUtteranceUpdated: (() -> Void)?
 
     override init() {
         super.init()
+        speechSynthesizer.delegate = self
+        speechSynthesizer.usesApplicationAudioSession = true
         refreshAudioRoute(hasPairedGlasses: false)
         observeRouteAndInterruptions()
     }
@@ -36,6 +67,7 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
             pairedGlassesHint = hasPairedGlasses
         }
         let session = AVAudioSession.sharedInstance()
+        inputName = session.currentRoute.inputs.first?.portName ?? ""
         let outputs = session.currentRoute.outputs
         if outputs.isEmpty {
             currentRoute = .none
@@ -130,8 +162,9 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
         stopCapture()
 
         sessionStartClock = sessionStartMonotonic
-        lastCommittedWordCount = 0
-        lastSegmentEndSec = 0.0
+        completedUtterances = []
+        recognitionIssue = nil
+        external = false
         utterances.removeAll()
         livePartialTranscript = ""
         onFirstAudioDelivered = onFirstAudioBuffer
@@ -143,54 +176,64 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
         refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
         return
         #else
-        // Avoid combining .voiceChat with .allowBluetoothA2DP (causes OSStatus -50 on iOS hardware).
-        // Use .default with .allowBluetoothHFP + .defaultToSpeaker so both Ray-Ban Meta HFP mic/audio
-        // and iPhone built-in mic/earbuds work cleanly without error!
-        do {
+        // Meta glasses HFP is the listen source whenever glasses are paired.
+        // Phone mic is only an explicit override (or fallback with no glasses).
+        // One-time migration: older builds defaulted phone mic ON; force glasses-first.
+        if UserDefaults.standard.object(forKey: "sherlocked_glasses_mic_primary_v1") == nil {
+            UserDefaults.standard.set(false, forKey: "sherlocked_phone_mic")
+            UserDefaults.standard.set(true, forKey: "sherlocked_glasses_mic_primary_v1")
+        }
+        let forcePhoneMic = UserDefaults.standard.bool(forKey: "sherlocked_phone_mic")
+        let useGlassesMic = hasPairedGlasses && !forcePhoneMic
+
+        if useGlassesMic {
+            // Verified on Ray-Ban Meta Gen 3: videoRecording + HFP avoids OSStatus -50 / -10868.
             try audioSession.setCategory(
                 .playAndRecord,
                 mode: .videoRecording,
                 options: [.allowBluetoothHFP, .mixWithOthers, .defaultToSpeaker]
             )
-        } catch {
-            try audioSession.setCategory(.playAndRecord, mode: .default, options: [.allowBluetoothHFP, .defaultToSpeaker])
+        } else {
+            // Phone mic near the speaker; Bluetooth A2DP/HFP still available for private cues.
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.allowBluetoothA2DP, .allowBluetoothHFP, .defaultToSpeaker]
+            )
         }
-        try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        try audioSession.setActive(true)
 
-        if let btInput = audioSession.availableInputs?.first(where: { $0.portType == .bluetoothHFP }) {
-            try? audioSession.setPreferredInput(btInput)
+        let preferredPort: AVAudioSession.Port = useGlassesMic ? .bluetoothHFP : .builtInMic
+        if let preferredInput = audioSession.availableInputs?.first(where: { $0.portType == preferredPort }) {
+            try audioSession.setPreferredInput(preferredInput)
+        } else if useGlassesMic,
+                  let anyHFP = audioSession.availableInputs?.first(where: {
+                      $0.portType == .bluetoothHFP
+                      || $0.portName.localizedCaseInsensitiveContains("Ray-Ban")
+                      || $0.portName.localizedCaseInsensitiveContains("RB Meta")
+                      || $0.portName.localizedCaseInsensitiveContains("Meta")
+                  }) {
+            try audioSession.setPreferredInput(anyHFP)
         }
         refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
 
-        // Instantiate a fresh AVAudioEngine AFTER setActive + setPreferredInput so its input AUHAL
-        // matches Ray-Ban Meta BluetoothHFP (16 kHz mono) without throwing CoreAudio -10868!
+        // Obtain the hardware format after selecting the recording route.
         let freshEngine = AVAudioEngine()
         self.audioEngine = freshEngine
         let inputNode = freshEngine.inputNode
         let hwFormat = inputNode.inputFormat(forBus: 0)
         guard hwFormat.sampleRate > 0 && hwFormat.channelCount > 0 else {
-            return
+            throw NSError(domain: "SherlockedAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available."])
         }
-
-        let req = SFSpeechAudioBufferRecognitionRequest()
-        req.shouldReportPartialResults = true
-        recognitionRequest = req
-
-        if let recognizer = speechRecognizer, recognizer.isAvailable {
-            recognitionTask = Self.startNonisolatedRecognitionTask(
-                recognizer: recognizer,
-                request: req
-            ) { [weak self] snapshot in
-                Task { @MainActor [weak self] in
-                    self?.consumeSpeechSnapshot(snapshot)
-                }
-            }
+        guard speechRecognizer?.isAvailable == true else {
+            throw NSError(domain: "SherlockedSpeech", code: 1, userInfo: [NSLocalizedDescriptionKey: "English speech recognition is unavailable."])
         }
+        beginRecognition()
 
         Self.installNonisolatedAudioTap(
             on: inputNode,
             format: hwFormat,
-            request: req
+            input: speechInput
         ) { [weak self] in
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -201,19 +244,63 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
             }
         }
 
+        tapInstalled = true
         freshEngine.prepare()
         try freshEngine.start()
         #endif
     }
 
-    private struct SpeechSegmentItem: Sendable {
+    private func beginRecognition() {
+        guard let recognizer = speechRecognizer else { return }
+        let id = UUID()
+        generation = id
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.shouldReportPartialResults = true
+        request.addsPunctuation = true
+        // Dictation + bias phrases help the glasses mic catch a front speaker at conversational distance.
+        request.taskHint = .dictation
+        request.contextualStrings = [
+            "two truths and a lie",
+            "two truths and one lie",
+            "let's play two truths and a lie",
+            "story one", "story two", "story three",
+            "number one", "number two", "number three",
+            "first", "second", "third",
+            "the lie was story", "the lie is number",
+            "follow-up questions", "ask me questions",
+        ]
+        completedUtterances = utterances
+        offset = max(0, CACurrentMediaTime() - sessionStartClock)
+        recognitionRequest = request
+        speechInput.replace(request, external: external)
+        recognitionTask = Self.startNonisolatedRecognitionTask(recognizer: recognizer, request: request) { [weak self] snapshot, error in
+            Task { @MainActor [weak self] in
+                guard let self, self.generation == id else { return }
+                if let snapshot {
+                    self.recognitionIssue = nil
+                    self.consumeSpeechSnapshot(snapshot)
+                }
+                if snapshot?.isFinal == true || error != nil {
+                    self.recognitionIssue = error.map { "Speech recognition is reconnecting. " + $0 }
+                    self.generation = UUID()
+                    self.retryTask = Task { @MainActor in
+                        if error != nil { try? await Task.sleep(for: .milliseconds(280)) }
+                        guard !Task.isCancelled else { return }
+                        self.beginRecognition()
+                    }
+                }
+            }
+        }
+    }
+
+    struct SpeechSegmentItem: Sendable {
         let substring: String
         let timestamp: Double
         let duration: Double
         let confidence: Float
     }
 
-    private struct SpeechSnapshot: Sendable {
+    struct SpeechSnapshot: Sendable {
         let formattedString: String
         let isFinal: Bool
         let segments: [SpeechSegmentItem]
@@ -222,10 +309,10 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
     nonisolated private static func startNonisolatedRecognitionTask(
         recognizer: SFSpeechRecognizer,
         request: SFSpeechAudioBufferRecognitionRequest,
-        onResult: @escaping @Sendable (SpeechSnapshot) -> Void
+        onResult: @escaping @Sendable (SpeechSnapshot?, String?) -> Void
     ) -> SFSpeechRecognitionTask {
-        recognizer.recognitionTask(with: request) { result, _ in
-            guard let result else { return }
+        recognizer.recognitionTask(with: request) { result, error in
+            guard let result else { onResult(nil, error?.localizedDescription); return }
             let items = result.bestTranscription.segments.map {
                 SpeechSegmentItem(
                     substring: $0.substring,
@@ -239,7 +326,7 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
                     formattedString: result.bestTranscription.formattedString,
                     isFinal: result.isFinal,
                     segments: items
-                )
+                ), error?.localizedDescription
             )
         }
     }
@@ -247,15 +334,14 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
     nonisolated private static func installNonisolatedAudioTap(
         on inputNode: AVAudioInputNode,
         format: AVAudioFormat,
-        request: SFSpeechAudioBufferRecognitionRequest,
+        input: SpeechInput,
         onSampleSeen: @escaping @Sendable () -> Void
     ) {
-        nonisolated(unsafe) let unsafeReq = request
         nonisolated(unsafe) var emittedFirst = false
 
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             guard buffer.frameLength > 0 else { return }
-            unsafeReq.append(buffer)
+            input.append(buffer, external: false)
             if !emittedFirst {
                 emittedFirst = true
                 onSampleSeen()
@@ -265,32 +351,69 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
 
     /// Consumes synchronized PCM buffers coming directly from Ray-Ban Meta glasses when enabled.
     func consumeExternalGlassesPCM(_ buffer: AVAudioPCMBuffer) {
-        recognitionRequest?.append(buffer)
+        guard recognitionRequest != nil else { return }
+        if !external {
+            external = true
+            generation = UUID()
+            retryTask?.cancel()
+            recognitionTask?.cancel()
+            beginRecognition()
+        }
+        speechInput.append(buffer, external: true)
         if !isMicrophoneFlowing {
             isMicrophoneFlowing = true
             onFirstAudioDelivered?()
         }
     }
 
-    private func consumeSpeechSnapshot(_ result: SpeechSnapshot) {
-        let text = result.formattedString
-        livePartialTranscript = text
+    /// Soft-corrects common glasses-mic ASR misses for the two-truths invitation.
+    private static func normalizeFrontSpeakerASR(_ text: String) -> String {
+        var out = text
+        let swaps: [(String, String)] = [
+            (#"(?i)\bto truths\b"#, "two truths"),
+            (#"(?i)\btoo truths\b"#, "two truths"),
+            (#"(?i)\btwo truth\b"#, "two truths"),
+            (#"(?i)\btrue truths\b"#, "two truths"),
+            (#"(?i)\band alive\b"#, "and a lie"),
+            (#"(?i)\ban alive\b"#, "and a lie"),
+            (#"(?i)\band the lie\b"#, "and a lie"),
+            (#"(?i)\bin a lie\b"#, "and a lie"),
+            (#"(?i)\band rely\b"#, "and a lie"),
+            (#"(?i)\btwo truths and lie\b"#, "two truths and a lie"),
+        ]
+        for (pattern, replacement) in swaps {
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let range = NSRange(out.startIndex..<out.endIndex, in: out)
+                out = regex.stringByReplacingMatches(in: out, range: range, withTemplate: replacement)
+            }
+        }
+        return out
+    }
 
+    func consumeSpeechSnapshot(_ result: SpeechSnapshot) {
         let segments = result.segments
-        guard segments.count > lastCommittedWordCount else { return }
+        guard let first = segments.first else { return }
+        // Some recognizers publish a new time slice after a pause in the same task.
+        // Keep earlier, disjoint audio while allowing revisions to overlapping words.
+        if let last = utterances.last, first.timestamp + offset >= last.end_sec + 0.15 {
+            completedUtterances = utterances
+        }
+        let normalizedFormatted = Self.normalizeFrontSpeakerASR(result.formattedString)
+        livePartialTranscript = (completedUtterances.map(\.text) + [normalizedFormatted]).joined(separator: " ")
 
         var currentWords: [WordTimestampDTO] = []
         var clauseStart: Double?
-        var prevEnd = lastSegmentEndSec
-        var rebuilt: [UtteranceSegmentDTO] = []
+        var prevEnd = offset
+        var rebuilt = completedUtterances
 
         for seg in segments {
-            let wStart = max(0.0, seg.timestamp)
+            let wStart = offset + max(0.0, seg.timestamp)
             let wEnd = wStart + max(0.08, seg.duration)
             let gap = wStart - prevEnd
 
-            if !currentWords.isEmpty && gap > 0.68 {
-                let cText = currentWords.map(\.word).joined(separator: " ")
+            // Slightly tighter clause split so front-speaker pauses still form story boundaries quickly.
+            if !currentWords.isEmpty && gap > 0.55 {
+                let cText = Self.normalizeFrontSpeakerASR(currentWords.map(\.word).joined(separator: " "))
                 let s0 = clauseStart ?? 0.0
                 let s1 = currentWords.last?.end_sec ?? wStart
                 let pauseBefore = max(0.0, s0 - (rebuilt.last?.end_sec ?? 0.0))
@@ -317,14 +440,14 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
                     word: seg.substring,
                     start_sec: (wStart * 100).rounded() / 100,
                     end_sec: (wEnd * 100).rounded() / 100,
-                    confidence: Double(seg.confidence > 0 ? seg.confidence : 0.9)
+                    confidence: Double(seg.confidence)
                 )
             )
             prevEnd = wEnd
         }
 
         if !currentWords.isEmpty {
-            let cText = currentWords.map(\.word).joined(separator: " ")
+            let cText = Self.normalizeFrontSpeakerASR(currentWords.map(\.word).joined(separator: " "))
             let s0 = clauseStart ?? 0.0
             let s1 = currentWords.last?.end_sec ?? s0 + 0.3
             let pauseBefore = max(0.0, s0 - (rebuilt.last?.end_sec ?? 0.0))
@@ -341,15 +464,23 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
             )
         }
 
-        if rebuilt.count != utterances.count || result.isFinal {
+        // Also normalize already-committed clause text (invitation often lands mid-stream).
+        for i in rebuilt.indices {
+            let fixed = Self.normalizeFrontSpeakerASR(rebuilt[i].text)
+            if fixed != rebuilt[i].text {
+                rebuilt[i].text = fixed
+            }
+        }
+
+        if rebuilt != utterances || result.isFinal {
             utterances = rebuilt
-            lastCommittedWordCount = segments.count
             onUtteranceUpdated?()
         }
     }
 
-    func speakCuePrivatelyIfPermitted(_ text: String, forceReadyCue: Bool = false) -> Bool {
-        guard currentRoute.isPrivate || forceReadyCue else {
+    func speakCuePrivatelyIfPermitted(_ text: String) -> Bool {
+        refreshAudioRoute()
+        guard currentRoute.isPrivate else {
             return false
         }
         if speechSynthesizer.isSpeaking {
@@ -357,17 +488,28 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject {
         }
         let utterance = AVSpeechUtterance(string: text)
         utterance.rate = 0.51
-        utterance.volume = forceReadyCue ? 0.85 : 0.72
+        utterance.volume = 1.0
         utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
         speechSynthesizer.speak(utterance)
         return true
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        let ports = AVAudioSession.sharedInstance().currentRoute.outputs.map { $0.portType.rawValue }
+        print("[Sherlocked] speech playback started on \(ports)")
     }
 
     func stopCapture() {
         if audioEngine.isRunning {
             audioEngine.stop()
         }
-        audioEngine.inputNode.removeTap(onBus: 0)
+        generation = UUID()
+        retryTask?.cancel()
+        speechInput.replace(nil, external: false)
+        if tapInstalled {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
         recognitionRequest?.endAudio()
         recognitionRequest = nil
         recognitionTask?.cancel()

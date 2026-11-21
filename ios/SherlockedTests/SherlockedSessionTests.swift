@@ -11,6 +11,37 @@ final class SherlockedSessionTests: XCTestCase {
         try await super.tearDown()
     }
 
+    func testPartialRecognitionReplacesWordsWithinOneClause() {
+        let engine = AudioAndSpeechEngine()
+        func snapshot(_ words: [String]) -> AudioAndSpeechEngine.SpeechSnapshot {
+            .init(formattedString: words.joined(separator: " "), isFinal: false,
+                  segments: words.enumerated().map { index, word in
+                      .init(substring: word, timestamp: Double(index) * 0.2, duration: 0.2, confidence: 0)
+                  })
+        }
+        engine.consumeSpeechSnapshot(snapshot(["I", "ski"]))
+        engine.consumeSpeechSnapshot(snapshot(["I", "swim"]))
+        XCTAssertEqual(engine.utterances.first?.text, "I swim")
+        engine.consumeSpeechSnapshot(snapshot(["I", "swim", "daily"]))
+        XCTAssertEqual(engine.utterances.first?.text, "I swim daily")
+    }
+
+    func testLiveTurnsYieldOneGameCueWithoutPrivateRoute() async throws {
+        let coordinator = SessionCoordinator()
+        await coordinator.startOrReturnToSession(forcePhoneFallback: true)
+        defer { coordinator.stopSession() }
+        let statements = ["Two truths and a lie.", "One I once lived in London.",
+                          "Two I ran a marathon last June.", "Three I have climbed the tallest mountain."]
+        for (index, words) in statements.enumerated() {
+            coordinator.injectSimulatedMicrophoneSampleAndUtterance(words, startSec: Double(index * 3), endSec: Double(index * 3 + 2))
+        }
+        for _ in 0..<100 where coordinator.latestResponse?.initial_guess == nil {
+            try await Task.sleep(for: .milliseconds(100))
+        }
+        XCTAssertNotNil(coordinator.latestResponse?.initial_guess)
+        XCTAssertTrue(coordinator.onScreenCueBanner?.contains("The one starting:") == true)
+    }
+
     func testReadyCueFiresOnlyAfterBothCameraAndMicFlow() async throws {
         UserDefaults.standard.set(true, forKey: "sherlocked_onboarding_completed")
         let coordinator = SessionCoordinator()

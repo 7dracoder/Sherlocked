@@ -319,3 +319,75 @@ def test_straight_face_controls_and_face_masked_rerun(client: TestClient) -> Non
     r_media = client.get("/api/v1/fixtures/game_natural_lie2/media/masked")
     assert r_media.status_code == 200
     assert len(r_media.content) > 10_000
+
+
+def test_game_spans_pause_and_unpunctuated_numbered_claims(client: TestClient) -> None:
+    sid = "e2e_fragmented_game"
+    client.post(f"/api/v1/session/{sid}/reset")
+    response = client.post("/api/v1/session/analyze", json={
+        "session_id": sid,
+        "audio_route": AudioRouteKind.GLASSES_PRIVATE.value,
+        "utterances": [
+            {"segment_id": "rules", "text": "two truths", "start_sec": 0, "end_sec": 1},
+            {"segment_id": "round", "text": "and one lie one I live in Boston two I own a boat three I ran a marathon",
+             "start_sec": 2, "end_sec": 10},
+        ],
+    })
+    assert response.status_code == 200
+    result = response.json()
+    assert result["should_speak_privately"]
+    assert len(result["stories"]) == 3
+    assert "Boston" in result["stories"][0]["transcript"]
+    assert "boat" in result["stories"][1]["transcript"]
+    assert "marathon" in result["stories"][2]["transcript"]
+
+
+def test_glasses_front_speaker_asr_mishear_still_locks_lie_guess(client: TestClient) -> None:
+    """Front-speaker invitation mangled by glasses mic must still enter Game and lock a guess."""
+    sid = "e2e_asr_mishear_game"
+    client.post(f"/api/v1/session/{sid}/reset")
+    response = client.post(
+        "/api/v1/session/analyze",
+        json={
+            "session_id": sid,
+            "turn_id": "turn_asr",
+            "capture_source": CaptureSourceKind.GLASSES.value,
+            "audio_route": AudioRouteKind.GLASSES_PRIVATE.value,
+            "utterances": [
+                {
+                    "segment_id": "u0",
+                    "text": "Let's play to truths and alive.",
+                    "start_sec": 0.0,
+                    "end_sec": 1.6,
+                },
+                {
+                    "segment_id": "u1",
+                    "text": "One, in October 2021 I missed a connecting flight at Chicago Airport.",
+                    "start_sec": 2.0,
+                    "end_sec": 5.2,
+                    "pause_before_sec": 0.3,
+                },
+                {
+                    "segment_id": "u2",
+                    "text": "Two, last summer I kind of cooked pasta somewhere.",
+                    "start_sec": 6.2,
+                    "end_sec": 9.0,
+                    "pause_before_sec": 0.95,
+                },
+                {
+                    "segment_id": "u3",
+                    "text": "Three, in March 2023 I needed six stitches at a university clinic.",
+                    "start_sec": 10.0,
+                    "end_sec": 13.4,
+                    "pause_before_sec": 0.4,
+                },
+            ],
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["activity"] == ActivityKind.GAME.value
+    assert data["initial_guess"] is not None
+    assert data["initial_guess"]["chosen_story_number"] == 2
+    assert data["should_speak_privately"] is True
+    assert "lie" in (data["spoken_cue_text"] or "").lower()

@@ -27,7 +27,9 @@ def main() -> None:
         pcm,
         word_timestamps=True,
         vad_filter=True,
-        beam_size=3,
+        beam_size=1,
+        best_of=1,
+        condition_on_previous_text=False,
     )
 
     out_segments = []

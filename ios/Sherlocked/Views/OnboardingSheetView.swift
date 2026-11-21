@@ -6,6 +6,8 @@ struct OnboardingSheetView: View {
     @State private var backendURLDraft: String = ""
     @State private var backendSaveNote: String = ""
 
+    @AppStorage("sherlocked_phone_mic") private var usePhoneMic = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -90,6 +92,11 @@ struct OnboardingSheetView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
+                        Toggle("Override: use iPhone mic instead of glasses", isOn: $usePhoneMic)
+                            .disabled(coordinator.isSessionActive)
+                        Text("Default: Ray-Ban Meta glasses mic listens to the person in front of you. Only turn this on if you want the iPhone mic instead (e.g. phone placed near the speaker).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         Button {
                             Task {
                                 let res = await coordinator.audioEngine.requestPermissions()

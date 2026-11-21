@@ -501,8 +501,14 @@ final class GlassesWearablesCoordinator: ObservableObject {
         let codec: VideoCodec = isMockModeEnabled ? .raw : .hvc1
         let config: StreamConfiguration
         if enableSynchronizedGlassesAudio && !isMockModeEnabled {
-            let micPerm = try? await wearables.checkPermissionStatus(.microphone)
+            var micPerm = try? await wearables.checkPermissionStatus(.microphone)
+            if micPerm != .granted {
+                isAwaitingPermissionRedirect = true
+                micPerm = try? await wearables.requestPermission(.microphone)
+                isAwaitingPermissionRedirect = false
+            }
             if micPerm == .granted {
+                // Forward-facing glasses mic array — best source for the speaker in front of you.
                 config = StreamConfiguration(
                     videoCodec: codec,
                     audioCodec: .pcm(sampleRate: .rate16000, numberOfChannels: 1),
@@ -510,6 +516,7 @@ final class GlassesWearablesCoordinator: ObservableObject {
                     frameRate: 24
                 )
             } else {
+                // Fall back to Bluetooth HFP mic via AVAudioSession.
                 config = StreamConfiguration(videoCodec: codec, resolution: .low, frameRate: 24)
             }
         } else {

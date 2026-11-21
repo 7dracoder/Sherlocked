@@ -99,6 +99,9 @@ struct MainSessionView: View {
                     .font(.caption2)
                     .foregroundStyle(coordinator.audioEngine.currentRoute.isPrivate ? .green : .orange)
                     .accessibilityIdentifier("audio_route_label")
+                PrivateAudioRoutePicker()
+                    .frame(width: 36, height: 36)
+                    .accessibilityLabel("Choose audio output")
 
                 Spacer()
 
@@ -137,7 +140,7 @@ struct MainSessionView: View {
 
                 if let onScreenCue = coordinator.onScreenCueBanner {
                     bannerCard(
-                        title: coordinator.audioEngine.currentRoute.isPrivate ? "Cue Delivered" : "Visual Cue (No Private Audio Route)",
+                        title: coordinator.audioEngine.currentRoute.isPrivate ? "Private cue" : "Visual Cue (No Private Audio Route)",
                         message: onScreenCue,
                         color: .mint,
                         identifier: "onscreen_cue_banner"
@@ -258,12 +261,17 @@ struct MainSessionView: View {
                 .accessibilityIdentifier("prominent_start_button")
             }
 
-            if !coordinator.audioEngine.livePartialTranscript.isEmpty {
+            if coordinator.isSessionActive || !coordinator.audioEngine.livePartialTranscript.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Live Transcript")
+                    Text(
+                        "Live Transcript · "
+                        + (coordinator.audioEngine.inputName.isEmpty
+                           ? (coordinator.captureSource == .glasses ? "Ray-Ban Meta mic" : "Waiting for mic")
+                           : coordinator.audioEngine.inputName)
+                    )
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
-                    Text(coordinator.audioEngine.livePartialTranscript)
+                    Text(coordinator.audioEngine.livePartialTranscript.isEmpty ? "Waiting for speech…" : coordinator.audioEngine.livePartialTranscript)
                         .font(.footnote)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -536,4 +544,14 @@ struct EvidenceResultSummaryView: View {
             }
         }
     }
+}
+
+private struct PrivateAudioRoutePicker: UIViewRepresentable {
+    func makeUIView(context: Context) -> AVRoutePickerView {
+        let view = AVRoutePickerView()
+        view.tintColor = .systemTeal
+        return view
+    }
+
+    func updateUIView(_ view: AVRoutePickerView, context: Context) {}
 }
