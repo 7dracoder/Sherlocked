@@ -87,6 +87,7 @@ Frames and intervals compromised by real-world wearable conditions are automatic
 - **Stage 1 (`gemini-4-neon`)**: Infers conversational context (`two_truths_and_a_lie`, `deal`, `practice`, `unclear`) and extracts strictly physical visual observations linked to `before` / `during` / `after` frame crops.
 - **Stage 2 (`gemini-4-carbon`)**: Synthesizes within-speaker cross-story or commitment-specific comparisons and candidate follow-up phrasing.
 - **Stage 3 (`gemini-decision-1` via `v1beta/decisions`)**: Produces calibrated multi-way probabilities and silence/speak gating at zero output-token cost.
+- **Stage 4 · Post-Session Debrief (`antigravity-preview-09-2026` Managed Agent + `gemini-4-argon`)**: Off the real-time whisper critical path, `POST /api/v1/session/{session_id}/agent-debrief` dispatches completed session telemetry to a remote sandboxed Gemini Managed Agent (`environment="remote"`) to run Python Brier-score calibration checks, modality-attribution audits, and structured post-exercise coaching summaries.
 - **Transparent Local Multimodal Engine**: When `GEMINI_API_KEY` is omitted, Sherlocked runs its full local `faster-whisper` + `MediaPipe` + calibrated Bayesian pipeline (`execution_mode: "local_multimodal_engine"`) using weights learned in `config/learned_pipeline_weights.json` (`0.407` lexical specificity, `0.376` vocal prosody, `0.217` facial motion) without ever faking live API status.
 
 ---

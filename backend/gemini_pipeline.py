@@ -31,10 +31,29 @@ from .schemas import (
 from .session_store import SessionRecord, SessionStore
 from .vision_tracker import FacialObservationTracker
 
+# Tolerates common front-speaker / glasses-mic ASR misses after soft normalization.
 GAME_RULE_PATTERN = re.compile(
-    r"\b(two truths (?:and|in|&) a lie|two truths one lie|two true.*one lie|three (?:stories|statements).*one (?:is a )?lie|guess which (?:one|story) is (?:the )?lie)\b",
+    r"\b("
+    r"(?:to|too|two|2|true)\s+truths?\s*[, ]*(?:(?:and|in|&|an)\s+)?(?:(?:a|one|1|the)\s+)?(?:lie|alive|rely)"
+    r"|two\s+true.{0,24}(?:one|a)\s+lie"
+    r"|three\s+(?:stories|statements).{0,40}one\s+(?:is\s+a\s+)?lie"
+    r"|guess\s+which\s+(?:one|story)\s+is\s+(?:the\s+)?lie"
+    r"|play\s+(?:a\s+)?(?:game\s+of\s+)?(?:to|too|two|2)\s+truths?"
+    r")\b",
     re.IGNORECASE,
 )
+_ASR_INVITE_FIXES = [
+    (re.compile(r"\bto truths\b", re.IGNORECASE), "two truths"),
+    (re.compile(r"\btoo truths\b", re.IGNORECASE), "two truths"),
+    (re.compile(r"\btwo truth\b", re.IGNORECASE), "two truths"),
+    (re.compile(r"\btrue truths\b", re.IGNORECASE), "two truths"),
+    (re.compile(r"\band alive\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\ban alive\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\band the lie\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\bin a lie\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\band rely\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\btwo truths and lie\b", re.IGNORECASE), "two truths and a lie"),
+]
 PRACTICE_RULE_PATTERN = re.compile(
     r"\b(role-?play|rehears(?:e|al|ing)|practice (?:pitch|negotiation|session|round|run)|coach me|mock pitch|let'?s practice)\b",
     re.IGNORECASE,
@@ -63,9 +82,9 @@ ORDINAL_SPLITS = [
     (3, re.compile(r"^(?:(?:story|number|statement)\s+)?(?:three|3|third(?:ly)?)\b[,:.\s-]*", re.IGNORECASE)),
 ]
 INLINE_ORDINAL_SPLITS = [
-    (1, re.compile(r"(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?(?:one|1|first(?:ly)?)\b[,:.\s-]+", re.IGNORECASE)),
-    (2, re.compile(r"(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?(?:two|2|second(?:ly)?)\b[,:.\s-]+", re.IGNORECASE)),
-    (3, re.compile(r"(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?(?:three|3|third(?:ly)?)\b[,:.\s-]+", re.IGNORECASE)),
+    (1, re.compile(r"(?:(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)(?:one|1|first(?:ly)?)\b[,:.\s-]+", re.IGNORECASE)),
+    (2, re.compile(r"(?:(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)(?:two|2|second(?:ly)?)\b[,:.\s-]+|\b(?:two|2)\s+(?=I\b|my\b)", re.IGNORECASE)),
+    (3, re.compile(r"(?:(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)(?:three|3|third(?:ly)?)\b[,:.\s-]+|\b(?:three|3)\s+(?=I\b|my\b)", re.IGNORECASE)),
 ]
 HEDGING_WORDS = re.compile(
     r"\b(kind of|sort of|basically|probably|around|may\s?be|i guess|at some point|somewhere|stuff like that|or something|pretty much)\b",
@@ -80,6 +99,25 @@ CONCRETE_ANCHOR_WORDS = re.compile(
 def _word_to_story_num(token: str) -> int | None:
     mapping = {"1": 1, "one": 1, "2": 2, "two": 2, "too": 2, "3": 3, "three": 3}
     return mapping.get(token.lower().strip())
+
+
+def _normalize_front_speaker_asr(text: str) -> str:
+    """Repair glasses-mic mishears of the game invitation before matching/scoring."""
+    out = text
+    for pattern, repl in _ASR_INVITE_FIXES:
+        out = pattern.sub(repl, out)
+    return out
+
+
+def _normalize_utterances_asr(utterances: Sequence[UtteranceSegment]) -> list[UtteranceSegment]:
+    fixed: list[UtteranceSegment] = []
+    for u in utterances:
+        new_text = _normalize_front_speaker_asr(u.text)
+        if new_text != u.text:
+            fixed.append(u.model_copy(update={"text": new_text}))
+        else:
+            fixed.append(u)
+    return fixed
 
 
 def _softmax(scores: list[float]) -> list[float]:
@@ -306,21 +344,26 @@ class SherlockedPipeline:
         if not utterances:
             return []
 
-        # Locate where game rules end
+        # Match the invitation across pauses, including a first story in the same segment.
+        rule = GAME_RULE_PATTERN.search(" ".join(u.text for u in utterances))
+        if rule is None:
+            return []
         story_utts: list[UtteranceSegment] = []
-        rule_seen = False
+        offset = 0
         for u in utterances:
-            if not rule_seen and GAME_RULE_PATTERN.search(u.text):
-                rule_seen = True
-                # Check if story 1 starts inside the same utterance after the rule
-                cleaned = GAME_RULE_PATTERN.sub("", u.text).strip(" .,:;-")
-                if len(cleaned.split()) >= 6 and re.search(r"\b(one|1|first)\b", cleaned, re.IGNORECASE):
-                    story_utts.append(u.model_copy(update={"text": cleaned}))
+            start = max(0, rule.end() - offset)
+            offset += len(u.text) + 1
+            tail = u.text[start:].strip(" .,:;-")
+            if not tail:
                 continue
-            if rule_seen:
-                if FOLLOWUP_REQUEST_PATTERN.search(u.text):
-                    break
-                story_utts.append(u)
+            if FOLLOWUP_REQUEST_PATTERN.search(tail):
+                break
+            if start:
+                if len(tail.split()) < 3 and not any(p.match(tail) for _, p in ORDINAL_SPLITS):
+                    continue
+                fraction = start / max(1, len(u.text))
+                u = u.model_copy(update={"text": tail, "start_sec": u.start_sec + fraction * (u.end_sec - u.start_sec)})
+            story_utts.append(u)
 
         if not story_utts:
             return []
@@ -540,13 +583,14 @@ class SherlockedPipeline:
                 f_score = sum(e.peak_delta * 3.2 for e in st_events)
             fac_raw.append(f_score)
 
+            story_grp = story_utt_groups[idx]
             note_parts = [f"Story {st.story_number}:"]
             if hedges:
                 note_parts.append(f"{hedges} qualifier phrase(s)")
             if anchors:
                 note_parts.append(f"{anchors} concrete detail anchor(s)")
-            if modality_mode != ModalityMode.TRANSCRIPT_ONLY and grp:
-                note_parts.append(f"onset pause {max((u.pause_before_sec for u in grp), default=0.0):.2f}s")
+            if modality_mode != ModalityMode.TRANSCRIPT_ONLY and story_grp:
+                note_parts.append(f"onset pause {max((u.pause_before_sec for u in story_grp), default=0.0):.2f}s")
             if st.observations:
                 note_parts.append("; ".join(st.observations))
             elif modality_mode == ModalityMode.AUDIO_PLUS_VISIBLE_FACE and usable_visible_frames:
@@ -849,7 +893,7 @@ class SherlockedPipeline:
         if modality_mode == ModalityMode.AUDIO_PLUS_VISIBLE_FACE:
             attached_crops = 0
             for fid, f_sample in usable_frame_lookup.items():
-                if f_sample.jpeg_base64 and f_sample.crop_phase in ("before", "during", "after", "reference_still"):
+                if f_sample.jpeg_base64 and f_sample.crop_phase in ("before", "during", "after", "reference_still", "sampled"):
                     neon_input.append(
                         {"type": "text", "text": f"Frame {fid} ({f_sample.timestamp_sec:.2f}s, {f_sample.crop_phase}):\n"}
                     )
@@ -1058,6 +1102,8 @@ class SherlockedPipeline:
 
         # 2. Extract / enrich live utterances, frames, and quality failure flags
         utterances, frames, events, discarded_flags, effective_fps = self._prepare_media_inputs(req)
+        # Repair common glasses-mic ASR misses so Game detection + lie scoring still fire.
+        utterances = _normalize_utterances_asr(utterances)
 
         # 3. Strip any spoken reveal from guesser inputs while recording post-reveal transitions
         pre_reveal_utts, spoken_reveal_num, post_reveal_utts = _strip_reveal_utterances(utterances)
@@ -1303,3 +1349,106 @@ class SherlockedPipeline:
             session.revealed_lie_story_number = revealed_lie_story_number
         self.store.save_session(session)
         return session
+
+    def run_managed_agent_debrief(self, session_id: str) -> dict[str, Any]:
+        """Runs a post-session replay & weight-calibration debrief via Gemini Managed Agents (`antigravity-preview-09-2026` + `gemini-4-argon`).
+
+        Keeps heavy remote sandboxed Python statistical analysis off the sub-second live whisper loop,
+        while producing post-round calibration metrics, Brier scores, and coaching takeaways.
+        """
+        session = self.store.get_session(session_id)
+        benchmark_path = self.settings.db_path.parent.parent / "research" / "results" / "benchmark_report.json"
+        benchmark_excerpt: dict[str, Any] = {}
+        if benchmark_path.exists():
+            try:
+                raw_bench = json.loads(benchmark_path.read_text(encoding="utf-8"))
+                benchmark_excerpt = {
+                    "paired_camera_vs_audio": raw_bench.get("experiments_2_3_game_and_camera_isolation", {}).get(
+                        "paired_camera_vs_audio", {}
+                    ),
+                    "learned_pipeline_weights": raw_bench.get("learned_pipeline_weights", {}),
+                }
+            except Exception:
+                benchmark_excerpt = {}
+
+        session_payload = {
+            "session_id": session.session_id,
+            "activity": session.current_activity.value,
+            "stories": [s.model_dump() for s in session.stories],
+            "initial_guess": session.initial_guess.model_dump() if session.initial_guess else None,
+            "updated_guess": session.updated_guess.model_dump() if session.updated_guess else None,
+            "revealed_lie_story_number": session.revealed_lie_story_number,
+            "benchmark_context": benchmark_excerpt,
+        }
+
+        if self.settings.has_live_gemini:
+            try:
+                from google import genai
+
+                client_beta = genai.Client(
+                    api_key=self.settings.gemini_api_key,
+                    http_options={"api_version": "v1beta", "timeout": 120_000},
+                )
+                prompt = (
+                    "You are Sherlocked's post-session calibration & coaching analyst running inside a Gemini Managed Agent sandbox. "
+                    "Using Python in your remote sandbox, compute the Brier score (if revealed_lie_story_number is present), "
+                    "audit whether visual observations vs. vocal prosody drove the locked guess, verify zero clinical/moralizing "
+                    "labels appear, and output a concise Markdown coaching & calibration summary.\n\n"
+                    f"Session JSON:\n{json.dumps(session_payload, indent=2)}"
+                )
+                interaction = client_beta.interactions.create(
+                    agent=self.settings.managed_agent_id,
+                    input=prompt,
+                    environment="remote",
+                    agent_config={
+                        "type": "antigravity",
+                        "model": self.settings.managed_agent_model,
+                    },
+                )
+                return {
+                    "session_id": session_id,
+                    "execution_mode": "live_managed_agent",
+                    "agent": self.settings.managed_agent_id,
+                    "model": self.settings.managed_agent_model,
+                    "environment_id": getattr(interaction, "environment_id", None),
+                    "debrief_markdown": sanitize_observable_text(
+                        interaction.output_text or "",
+                        allow_micro_expression_claim=self.weights.allow_micro_expression_claim,
+                    ),
+                }
+            except Exception as exc:
+                fallback_note = str(exc)
+            else:
+                fallback_note = None
+        else:
+            fallback_note = "GEMINI_API_KEY not configured; computed deterministic local statistical debrief."
+
+        # Deterministic local fallback debrief (computes exact multi-class Brier score when reveal is known)
+        brier_score: float | None = None
+        if session.initial_guess and session.revealed_lie_story_number in (1, 2, 3):
+            probs = session.initial_guess.probabilities
+            brier_score = round(
+                sum(
+                    (probs.get(f"story_{idx}", 0.0) - (1.0 if idx == session.revealed_lie_story_number else 0.0)) ** 2
+                    for idx in (1, 2, 3)
+                ),
+                4,
+            )
+
+        return {
+            "session_id": session_id,
+            "execution_mode": "local_statistical_debrief",
+            "agent": self.settings.managed_agent_id,
+            "model": self.settings.managed_agent_model,
+            "brier_score": brier_score,
+            "note": fallback_note,
+            "debrief_markdown": (
+                f"### Post-Session Calibration Debrief (`{session_id}`)\n"
+                f"- **Activity**: `{session.current_activity.value}`\n"
+                f"- **Locked Initial Guess**: `{session.initial_guess.chosen_story_number if session.initial_guess else 'N/A'}`\n"
+                f"- **Revealed Ground Truth**: `{session.revealed_lie_story_number or 'Unrevealed'}`\n"
+                f"- **Multi-Class Brier Score**: `{brier_score if brier_score is not None else 'Pending reveal'}`\n"
+                f"- **Active Modality Weights**: Lexical `{self.weights.lexical_consistency_weight:.3f}`, "
+                f"Prosody `{self.weights.vocal_prosody_weight:.3f}`, Facial `{self.weights.facial_evidence_weight:.3f}`"
+            ),
+        }

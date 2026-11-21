@@ -59,6 +59,8 @@ def health() -> dict[str, Any]:
             "neon": settings.neon_model,
             "carbon": settings.carbon_model,
             "decisions": settings.decision_model,
+            "managed_agent": settings.managed_agent_id,
+            "managed_agent_model": settings.managed_agent_model,
         },
         "learned_weights": {
             "facial_evidence_weight": weights.facial_evidence_weight,
@@ -103,6 +105,12 @@ def reset_session(session_id: str) -> dict[str, str]:
     pipeline = get_pipeline()
     pipeline.store.reset_session(session_id)
     return {"status": "reset", "session_id": session_id}
+
+
+@app.post("/api/v1/session/{session_id}/agent-debrief")
+def session_managed_agent_debrief(session_id: str) -> dict[str, Any]:
+    pipeline = get_pipeline()
+    return pipeline.run_managed_agent_debrief(session_id)
 
 
 @app.get("/api/v1/fixtures")

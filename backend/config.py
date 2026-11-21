@@ -74,6 +74,12 @@ class Settings:
     decision_model: str = field(
         default_factory=lambda: os.environ.get("SHERLOCKED_DECISION_MODEL", "gemini-decision-1")
     )
+    managed_agent_id: str = field(
+        default_factory=lambda: os.environ.get("SHERLOCKED_MANAGED_AGENT", "antigravity-preview-09-2026")
+    )
+    managed_agent_model: str = field(
+        default_factory=lambda: os.environ.get("SHERLOCKED_ARGON_MODEL", "gemini-4-argon")
+    )
     transcribe_model: str = field(
         default_factory=lambda: os.environ.get("SHERLOCKED_TRANSCRIBE_MODEL", "gemini-3.5-transcribe")
     )
