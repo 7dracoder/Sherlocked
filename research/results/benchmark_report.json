@@ -1,0 +1,795 @@
+{
+  "execution_mode": "local_multimodal_engine",
+  "external_datasets_status": {
+    "CASME_II": "pending_external_license_access (validated via consented photographic fixture suite)",
+    "SAMM_Long_Videos": "pending_external_license_access (validated via consented photographic fixture suite)",
+    "MU3D": "pending_external_license_access (validated via consented photographic fixture suite)",
+    "DOLOS": "pending_external_license_access (validated via consented photographic fixture suite)",
+    "BagOfLies": "pending_external_license_access (validated via consented photographic fixture suite)"
+  },
+  "media_suite": {
+    "fixtures_count": 17,
+    "total_clips": 26
+  },
+  "experiment_1_facial_spotting": {
+    "explicit_original_30fps": {
+      "precision": 0.6667,
+      "recall": 0.5,
+      "f1": 0.5714,
+      "true_positives": 2,
+      "false_positives": 1,
+      "false_negatives": 2,
+      "false_positives_on_zero_movement_clips": 0,
+      "clips": [
+        {
+          "clip_id": "spot_brief_lip_press_01",
+          "effective_fps": 30.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_brief_brow_furrow_02",
+          "effective_fps": 30.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_dual_events_03",
+          "effective_fps": 30.0,
+          "gt_events": 2,
+          "detected_events": 3,
+          "true_positives": 2,
+          "false_positives": 1,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_01",
+          "effective_fps": 30.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_02",
+          "effective_fps": 30.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        }
+      ]
+    },
+    "effective_glasses_24fps": {
+      "precision": 0.6667,
+      "recall": 0.5,
+      "f1": 0.5714,
+      "true_positives": 2,
+      "false_positives": 1,
+      "false_negatives": 2,
+      "false_positives_on_zero_movement_clips": 0,
+      "clips": [
+        {
+          "clip_id": "spot_brief_lip_press_01",
+          "effective_fps": 30.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_brief_brow_furrow_02",
+          "effective_fps": 30.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_dual_events_03",
+          "effective_fps": 30.0,
+          "gt_events": 2,
+          "detected_events": 3,
+          "true_positives": 2,
+          "false_positives": 1,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_01",
+          "effective_fps": 30.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_02",
+          "effective_fps": 30.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        }
+      ]
+    },
+    "bandwidth_reduced_glasses_15fps": {
+      "precision": 1.0,
+      "recall": 0.75,
+      "f1": 0.8571,
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 1,
+      "false_positives_on_zero_movement_clips": 0,
+      "clips": [
+        {
+          "clip_id": "spot_brief_lip_press_01",
+          "effective_fps": 15.0,
+          "gt_events": 1,
+          "detected_events": 1,
+          "true_positives": 1,
+          "false_positives": 0,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_brief_brow_furrow_02",
+          "effective_fps": 15.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_dual_events_03",
+          "effective_fps": 15.0,
+          "gt_events": 2,
+          "detected_events": 2,
+          "true_positives": 2,
+          "false_positives": 0,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_01",
+          "effective_fps": 15.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_02",
+          "effective_fps": 15.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        }
+      ]
+    },
+    "ordinary_video_sampler_1fps": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "f1": 0.0,
+      "true_positives": 0,
+      "false_positives": 0,
+      "false_negatives": 4,
+      "false_positives_on_zero_movement_clips": 0,
+      "clips": [
+        {
+          "clip_id": "spot_brief_lip_press_01",
+          "effective_fps": 1.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_brief_brow_furrow_02",
+          "effective_fps": 1.0,
+          "gt_events": 1,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 1
+        },
+        {
+          "clip_id": "spot_dual_events_03",
+          "effective_fps": 1.0,
+          "gt_events": 2,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 2
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_01",
+          "effective_fps": 1.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        },
+        {
+          "clip_id": "spot_zero_movement_neg_02",
+          "effective_fps": 1.0,
+          "gt_events": 0,
+          "detected_events": 0,
+          "true_positives": 0,
+          "false_positives": 0,
+          "missed_events": 0
+        }
+      ]
+    }
+  },
+  "experiments_2_3_game_and_camera_isolation": {
+    "modalities": {
+      "transcript_only": {
+        "n_rounds": 8,
+        "correct": 8,
+        "accuracy": 1.0,
+        "wilson_95_ci": [
+          0.6756,
+          1.0
+        ],
+        "p_value_vs_one_third_chance": 0.00015,
+        "straight_face_subset": {
+          "n_rounds": 4,
+          "correct": 4,
+          "accuracy": 1.0
+        },
+        "rounds": [
+          {
+            "clip_id": "example_live_lie_demo",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.948,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie2",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9996,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie1",
+            "subtype": "natural",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9919,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie3",
+            "subtype": "natural",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9919,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_all_neutral_lie3",
+            "subtype": "all_neutral_straight_face",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9984,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_uncomfortable_truth_lie1",
+            "subtype": "uncomfortable_truth",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9966,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_rehearsed_lie2",
+            "subtype": "rehearsed_lie",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9885,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_mostly_true_fabricated_detail_lie1",
+            "subtype": "mostly_true_one_fabricated_detail",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9919,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          }
+        ]
+      },
+      "audio_only": {
+        "n_rounds": 8,
+        "correct": 8,
+        "accuracy": 1.0,
+        "wilson_95_ci": [
+          0.6756,
+          1.0
+        ],
+        "p_value_vs_one_third_chance": 0.00015,
+        "straight_face_subset": {
+          "n_rounds": 4,
+          "correct": 4,
+          "accuracy": 1.0
+        },
+        "rounds": [
+          {
+            "clip_id": "example_live_lie_demo",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.7735,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie2",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9806,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie1",
+            "subtype": "natural",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9331,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie3",
+            "subtype": "natural",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9756,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_all_neutral_lie3",
+            "subtype": "all_neutral_straight_face",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9556,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_uncomfortable_truth_lie1",
+            "subtype": "uncomfortable_truth",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9143,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_rehearsed_lie2",
+            "subtype": "rehearsed_lie",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9101,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_mostly_true_fabricated_detail_lie1",
+            "subtype": "mostly_true_one_fabricated_detail",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.859,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          }
+        ]
+      },
+      "audio_plus_face_masked_video": {
+        "n_rounds": 8,
+        "correct": 8,
+        "accuracy": 1.0,
+        "wilson_95_ci": [
+          0.6756,
+          1.0
+        ],
+        "p_value_vs_one_third_chance": 0.00015,
+        "straight_face_subset": {
+          "n_rounds": 4,
+          "correct": 4,
+          "accuracy": 1.0
+        },
+        "rounds": [
+          {
+            "clip_id": "example_live_lie_demo",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.7735,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie2",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9806,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie1",
+            "subtype": "natural",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9331,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "game_natural_lie3",
+            "subtype": "natural",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9756,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_all_neutral_lie3",
+            "subtype": "all_neutral_straight_face",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9556,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_uncomfortable_truth_lie1",
+            "subtype": "uncomfortable_truth",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9143,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_rehearsed_lie2",
+            "subtype": "rehearsed_lie",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9101,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          },
+          {
+            "clip_id": "sf_mostly_true_fabricated_detail_lie1",
+            "subtype": "mostly_true_one_fabricated_detail",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.859,
+            "sparse_visual_disclosure": true,
+            "cited_frames": []
+          }
+        ]
+      },
+      "audio_plus_visible_face": {
+        "n_rounds": 8,
+        "correct": 8,
+        "accuracy": 1.0,
+        "wilson_95_ci": [
+          0.6756,
+          1.0
+        ],
+        "p_value_vs_one_third_chance": 0.00015,
+        "straight_face_subset": {
+          "n_rounds": 4,
+          "correct": 4,
+          "accuracy": 1.0
+        },
+        "rounds": [
+          {
+            "clip_id": "example_live_lie_demo",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.7151,
+            "sparse_visual_disclosure": false,
+            "cited_frames": [
+              "frame_00183",
+              "frame_00215"
+            ]
+          },
+          {
+            "clip_id": "game_natural_lie2",
+            "subtype": "natural",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.9303,
+            "sparse_visual_disclosure": false,
+            "cited_frames": [
+              "frame_00193"
+            ]
+          },
+          {
+            "clip_id": "game_natural_lie1",
+            "subtype": "natural",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9331,
+            "sparse_visual_disclosure": true,
+            "cited_frames": [
+              "frame_00062"
+            ]
+          },
+          {
+            "clip_id": "game_natural_lie3",
+            "subtype": "natural",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9102,
+            "sparse_visual_disclosure": false,
+            "cited_frames": [
+              "frame_00025",
+              "frame_00039",
+              "frame_00217",
+              "frame_00260"
+            ]
+          },
+          {
+            "clip_id": "sf_all_neutral_lie3",
+            "subtype": "all_neutral_straight_face",
+            "predicted_lie": 3,
+            "actual_lie": 3,
+            "correct": true,
+            "confidence": 0.9556,
+            "sparse_visual_disclosure": true,
+            "cited_frames": [
+              "frame_00377"
+            ]
+          },
+          {
+            "clip_id": "sf_uncomfortable_truth_lie1",
+            "subtype": "uncomfortable_truth",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.9143,
+            "sparse_visual_disclosure": true,
+            "cited_frames": [
+              "frame_00403"
+            ]
+          },
+          {
+            "clip_id": "sf_rehearsed_lie2",
+            "subtype": "rehearsed_lie",
+            "predicted_lie": 2,
+            "actual_lie": 2,
+            "correct": true,
+            "confidence": 0.8366,
+            "sparse_visual_disclosure": false,
+            "cited_frames": [
+              "frame_00081",
+              "frame_00095",
+              "frame_00125",
+              "frame_00173",
+              "frame_00190",
+              "frame_00233",
+              "frame_00325",
+              "frame_00482"
+            ]
+          },
+          {
+            "clip_id": "sf_mostly_true_fabricated_detail_lie1",
+            "subtype": "mostly_true_one_fabricated_detail",
+            "predicted_lie": 1,
+            "actual_lie": 1,
+            "correct": true,
+            "confidence": 0.8103,
+            "sparse_visual_disclosure": false,
+            "cited_frames": [
+              "frame_00087"
+            ]
+          }
+        ]
+      }
+    },
+    "masked_matches_audio_only_rate": 1.0,
+    "paired_camera_vs_audio": {
+      "camera_gain_accuracy_delta": 0.0,
+      "camera_only_wins": 0,
+      "audio_only_wins": 0,
+      "paired_sign_test_p_value": 1.0,
+      "statistically_clear_gain": false
+    },
+    "before_vs_after_followup_experiment": {
+      "n_rounds": 8,
+      "initial_accuracy": 1.0,
+      "updated_accuracy": 1.0,
+      "delta_accuracy": 0.0,
+      "trials": [
+        {
+          "clip_id": "example_live_lie_demo",
+          "actual_lie": 2,
+          "initial_locked_guess": 2,
+          "post_followup_updated_guess": 2,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "game_natural_lie2",
+          "actual_lie": 2,
+          "initial_locked_guess": 2,
+          "post_followup_updated_guess": 2,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "game_natural_lie1",
+          "actual_lie": 1,
+          "initial_locked_guess": 1,
+          "post_followup_updated_guess": 1,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "game_natural_lie3",
+          "actual_lie": 3,
+          "initial_locked_guess": 3,
+          "post_followup_updated_guess": 3,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "sf_all_neutral_lie3",
+          "actual_lie": 3,
+          "initial_locked_guess": 3,
+          "post_followup_updated_guess": 3,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "sf_uncomfortable_truth_lie1",
+          "actual_lie": 1,
+          "initial_locked_guess": 1,
+          "post_followup_updated_guess": 1,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "sf_rehearsed_lie2",
+          "actual_lie": 2,
+          "initial_locked_guess": 2,
+          "post_followup_updated_guess": 2,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        },
+        {
+          "clip_id": "sf_mostly_true_fabricated_detail_lie1",
+          "actual_lie": 1,
+          "initial_locked_guess": 1,
+          "post_followup_updated_guess": 1,
+          "initial_preserved_after_followup": true,
+          "followup_questions_count": 3
+        }
+      ]
+    }
+  },
+  "experiment_4_deal_cues": {
+    "constrained_deals": 2,
+    "sherlocked_targeted_surfacing_rate": 0.0,
+    "generic_followup_term_specificity_rate": 0.0,
+    "all_honest_deals": 2,
+    "interruptions_on_all_honest_deals": 0,
+    "honest_interruption_rate": 0.0,
+    "trials": [
+      {
+        "clip_id": "deal_friday_constraint",
+        "has_hidden_constraint": true,
+        "action": "silence",
+        "spoken_whisper": null,
+        "identified_term": "Friday",
+        "cited_frames": []
+      },
+      {
+        "clip_id": "deal_budget_constraint",
+        "has_hidden_constraint": true,
+        "action": "silence",
+        "spoken_whisper": null,
+        "identified_term": null,
+        "cited_frames": []
+      },
+      {
+        "clip_id": "deal_honest_control_01",
+        "has_hidden_constraint": false,
+        "action": "silence",
+        "spoken_whisper": null,
+        "identified_term": null,
+        "cited_frames": []
+      },
+      {
+        "clip_id": "deal_honest_control_02",
+        "has_hidden_constraint": false,
+        "action": "silence",
+        "spoken_whisper": null,
+        "identified_term": null,
+        "cited_frames": []
+      }
+    ]
+  },
+  "learned_pipeline_weights": {
+    "facial_evidence_weight": 0.217,
+    "vocal_prosody_weight": 0.376,
+    "lexical_consistency_weight": 0.407,
+    "deal_cue_confidence_threshold": 0.72,
+    "game_min_playable_confidence": 0.5,
+    "present_guess_as_exploratory": true,
+    "allow_micro_expression_claim": false,
+    "calibration_source": "research/run_experiments.py",
+    "camera_gain_over_audio": 0.0,
+    "camera_gain_p_value": 1.0,
+    "scientific_status": "pending_live_gemini_and_independent_human_dataset (harness validated on consented photographic fixtures)",
+    "notes": "Explicit 24fps tracker F1=0.57 vs 1fps video sampler F1=0.00. Camera-vs-audio delta=+0.00 (p=1.000); exploratory disclosure=enabled per spec."
+  }
+}

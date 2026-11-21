@@ -1,0 +1,686 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		00073A72B5EEA2F86DD05E9C /* AudioAndSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375E3B1D0C8BAE087B2E987 /* AudioAndSpeechEngine.swift */; };
+		07259614BDADD50A492D4540 /* MWDATSpeech in Frameworks */ = {isa = PBXBuildFile; productRef = 52700444E7D7DAF9D334D857 /* MWDATSpeech */; };
+		19CBAC067274590F90E80566 /* GlassesWearablesCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CCE229883879A31014FA3D /* GlassesWearablesCoordinator.swift */; };
+		3EF8A779F6E355139F457AD5 /* PhoneCameraCaptureSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE653C0C58EC3CBD4F72DC7F /* PhoneCameraCaptureSource.swift */; };
+		3FE0E72CFF0535A8502C700A /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = 3B5ADA3E9E6CA2B4EDBD82F4 /* MWDATCamera */; };
+		3FFC3744EBEAC58FB0102672 /* SherlockedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8669304B51F2AB11DF081E6 /* SherlockedApp.swift */; };
+		574719FAB4CFD417A3FF145B /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = 28AABE635378F4DF3A3BC04B /* MWDATCore */; };
+		5E5E693C5DEC6C4F9D5FC5D9 /* SherlockedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D03EA99A25975006F00C82 /* SherlockedUITests.swift */; };
+		698175062469AA9A25C7E2F5 /* MainSessionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776ABF2846AC4FBE8B41B40E /* MainSessionView.swift */; };
+		6ACFF6AB4CB9E28E01248B4D /* ManualCorrectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 291B2FE040B2713BFF04E639 /* ManualCorrectionSheet.swift */; };
+		6D93BE7121AB4B5EC0187983 /* MockGlassesSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B281A6C339DE63D374F195D /* MockGlassesSheetView.swift */; };
+		8F6D948E190CAA70ACB760C6 /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = F0FA14591723721FFF10C151 /* MWDATMockDevice */; };
+		9778B8452F7694330EB4F6CD /* OnDeviceFaceTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF6FE0DECC303E6D11E3507E /* OnDeviceFaceTracker.swift */; };
+		B17F876AA039C3DF8DD774D8 /* SherlockedSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FF987A766837519A5ED373D /* SherlockedSessionTests.swift */; };
+		B25805DAB29A06FFB7F6E0AB /* SherlockedModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84788E44F061DC2645A7D18A /* SherlockedModels.swift */; };
+		C1EF4940D3D0EE945DF40AEA /* MWDATMockDevice in Frameworks */ = {isa = PBXBuildFile; productRef = 9CF26FB1853FBD34ED368F6E /* MWDATMockDevice */; };
+		CA7CB5115062D0558DEE8F0E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 50386EB5726C08E529788FC4 /* Assets.xcassets */; };
+		D7F60C57EB03AE1C4690D4F4 /* BackendAPIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FD3DD76610076EC2865BD4 /* BackendAPIClient.swift */; };
+		D965D9B7DFD07105CA8BC361 /* SessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD994F54EBF7F37605B8790 /* SessionCoordinator.swift */; };
+		E00262F7048A2EA3C90F29C0 /* ReplayStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1267007D902BD7E892692EC2 /* ReplayStudioView.swift */; };
+		FC93153C7534DD7DD2EBD03A /* MWDATCore in Frameworks */ = {isa = PBXBuildFile; productRef = 3472A5913867643BF39AE944 /* MWDATCore */; };
+		FF29E64746773CD7F310235B /* OnboardingSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFC1561CF9BAAFB86CF4A7A5 /* OnboardingSheetView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2C314B08983530782038F3AC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D608D280BC08A7AE9E2CD8C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B4FB3979654C5BB27E588383;
+			remoteInfo = Sherlocked;
+		};
+		D5C62C0325562BD1420C8BB0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 7D608D280BC08A7AE9E2CD8C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B4FB3979654C5BB27E588383;
+			remoteInfo = Sherlocked;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		1267007D902BD7E892692EC2 /* ReplayStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayStudioView.swift; sourceTree = "<group>"; };
+		291B2FE040B2713BFF04E639 /* ManualCorrectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualCorrectionSheet.swift; sourceTree = "<group>"; };
+		2FCD9D6A0AE8853C902ACB4B /* SherlockedTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SherlockedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		34CCE229883879A31014FA3D /* GlassesWearablesCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlassesWearablesCoordinator.swift; sourceTree = "<group>"; };
+		50386EB5726C08E529788FC4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		54F612F07639F3805238793B /* Sherlocked.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Sherlocked.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5B281A6C339DE63D374F195D /* MockGlassesSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockGlassesSheetView.swift; sourceTree = "<group>"; };
+		5DD994F54EBF7F37605B8790 /* SessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCoordinator.swift; sourceTree = "<group>"; };
+		776ABF2846AC4FBE8B41B40E /* MainSessionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainSessionView.swift; sourceTree = "<group>"; };
+		8375E3B1D0C8BAE087B2E987 /* AudioAndSpeechEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioAndSpeechEngine.swift; sourceTree = "<group>"; };
+		84788E44F061DC2645A7D18A /* SherlockedModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SherlockedModels.swift; sourceTree = "<group>"; };
+		9FF987A766837519A5ED373D /* SherlockedSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SherlockedSessionTests.swift; sourceTree = "<group>"; };
+		A6FD3DD76610076EC2865BD4 /* BackendAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackendAPIClient.swift; sourceTree = "<group>"; };
+		B5D0BE1DDE6A4E35E1FE48F1 /* SherlockedUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SherlockedUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		B8669304B51F2AB11DF081E6 /* SherlockedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SherlockedApp.swift; sourceTree = "<group>"; };
+		DFC1561CF9BAAFB86CF4A7A5 /* OnboardingSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingSheetView.swift; sourceTree = "<group>"; };
+		E4D03EA99A25975006F00C82 /* SherlockedUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SherlockedUITests.swift; sourceTree = "<group>"; };
+		EE653C0C58EC3CBD4F72DC7F /* PhoneCameraCaptureSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneCameraCaptureSource.swift; sourceTree = "<group>"; };
+		FF6FE0DECC303E6D11E3507E /* OnDeviceFaceTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnDeviceFaceTracker.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		7F0805C5A2DDF1C6554AB07F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				574719FAB4CFD417A3FF145B /* MWDATCore in Frameworks */,
+				C1EF4940D3D0EE945DF40AEA /* MWDATMockDevice in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8402FFF4787FB6F8492AF159 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FC93153C7534DD7DD2EBD03A /* MWDATCore in Frameworks */,
+				3FE0E72CFF0535A8502C700A /* MWDATCamera in Frameworks */,
+				07259614BDADD50A492D4540 /* MWDATSpeech in Frameworks */,
+				8F6D948E190CAA70ACB760C6 /* MWDATMockDevice in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0160794D85D4E3A2366867BF /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				8375E3B1D0C8BAE087B2E987 /* AudioAndSpeechEngine.swift */,
+				A6FD3DD76610076EC2865BD4 /* BackendAPIClient.swift */,
+				34CCE229883879A31014FA3D /* GlassesWearablesCoordinator.swift */,
+				FF6FE0DECC303E6D11E3507E /* OnDeviceFaceTracker.swift */,
+				EE653C0C58EC3CBD4F72DC7F /* PhoneCameraCaptureSource.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		09CCE56D9946FD16CA6CCC10 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				5DD994F54EBF7F37605B8790 /* SessionCoordinator.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		27CE8B2A0F29855327F12459 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				54F612F07639F3805238793B /* Sherlocked.app */,
+				2FCD9D6A0AE8853C902ACB4B /* SherlockedTests.xctest */,
+				B5D0BE1DDE6A4E35E1FE48F1 /* SherlockedUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		942F71CC3E04A92A7A8D76F6 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				84788E44F061DC2645A7D18A /* SherlockedModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		9EDD57878B898A6A01FBF9C4 /* SherlockedTests */ = {
+			isa = PBXGroup;
+			children = (
+				9FF987A766837519A5ED373D /* SherlockedSessionTests.swift */,
+			);
+			path = SherlockedTests;
+			sourceTree = "<group>";
+		};
+		A876258A5D34F686FD839F7C /* Sherlocked */ = {
+			isa = PBXGroup;
+			children = (
+				50386EB5726C08E529788FC4 /* Assets.xcassets */,
+				B8669304B51F2AB11DF081E6 /* SherlockedApp.swift */,
+				942F71CC3E04A92A7A8D76F6 /* Models */,
+				0160794D85D4E3A2366867BF /* Services */,
+				09CCE56D9946FD16CA6CCC10 /* ViewModels */,
+				AA5179FE6DC2F51346908BF1 /* Views */,
+			);
+			path = Sherlocked;
+			sourceTree = "<group>";
+		};
+		AA5179FE6DC2F51346908BF1 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				776ABF2846AC4FBE8B41B40E /* MainSessionView.swift */,
+				291B2FE040B2713BFF04E639 /* ManualCorrectionSheet.swift */,
+				5B281A6C339DE63D374F195D /* MockGlassesSheetView.swift */,
+				DFC1561CF9BAAFB86CF4A7A5 /* OnboardingSheetView.swift */,
+				1267007D902BD7E892692EC2 /* ReplayStudioView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		D76EFB6FC6B77EA34BD68457 /* SherlockedUITests */ = {
+			isa = PBXGroup;
+			children = (
+				E4D03EA99A25975006F00C82 /* SherlockedUITests.swift */,
+			);
+			path = SherlockedUITests;
+			sourceTree = "<group>";
+		};
+		F6D40DD4C495F4EB9B6578B6 = {
+			isa = PBXGroup;
+			children = (
+				A876258A5D34F686FD839F7C /* Sherlocked */,
+				9EDD57878B898A6A01FBF9C4 /* SherlockedTests */,
+				D76EFB6FC6B77EA34BD68457 /* SherlockedUITests */,
+				27CE8B2A0F29855327F12459 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A773A3F379389256E6F9882B /* SherlockedTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = EC74157D3F9A9AAF88A96CB2 /* Build configuration list for PBXNativeTarget "SherlockedTests" */;
+			buildPhases = (
+				89D044205C047940BABD0BFB /* Sources */,
+				7F0805C5A2DDF1C6554AB07F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0B624494A2651EF16A8236CC /* PBXTargetDependency */,
+			);
+			name = SherlockedTests;
+			packageProductDependencies = (
+				28AABE635378F4DF3A3BC04B /* MWDATCore */,
+				9CF26FB1853FBD34ED368F6E /* MWDATMockDevice */,
+			);
+			productName = SherlockedTests;
+			productReference = 2FCD9D6A0AE8853C902ACB4B /* SherlockedTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		B4FB3979654C5BB27E588383 /* Sherlocked */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 67FE6DEE54CF1E8BF3E07A32 /* Build configuration list for PBXNativeTarget "Sherlocked" */;
+			buildPhases = (
+				938E93A48B2B741A2B09AB76 /* Sources */,
+				96EB337C0CB976B7A6D12AEB /* Resources */,
+				8402FFF4787FB6F8492AF159 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Sherlocked;
+			packageProductDependencies = (
+				3472A5913867643BF39AE944 /* MWDATCore */,
+				3B5ADA3E9E6CA2B4EDBD82F4 /* MWDATCamera */,
+				52700444E7D7DAF9D334D857 /* MWDATSpeech */,
+				F0FA14591723721FFF10C151 /* MWDATMockDevice */,
+			);
+			productName = Sherlocked;
+			productReference = 54F612F07639F3805238793B /* Sherlocked.app */;
+			productType = "com.apple.product-type.application";
+		};
+		C424ADE36D2AF709316E401C /* SherlockedUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C5E019717DC0A8AC6AEA610F /* Build configuration list for PBXNativeTarget "SherlockedUITests" */;
+			buildPhases = (
+				B328331EF909DE3FE6561F23 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E52EE65B94514AF354CB3E83 /* PBXTargetDependency */,
+			);
+			name = SherlockedUITests;
+			packageProductDependencies = (
+			);
+			productName = SherlockedUITests;
+			productReference = B5D0BE1DDE6A4E35E1FE48F1 /* SherlockedUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		7D608D280BC08A7AE9E2CD8C /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2720;
+				TargetAttributes = {
+					A773A3F379389256E6F9882B = {
+						DevelopmentTeam = "";
+					};
+					B4FB3979654C5BB27E588383 = {
+						DevelopmentTeam = "";
+						ProvisioningStyle = Automatic;
+					};
+					C424ADE36D2AF709316E401C = {
+						DevelopmentTeam = "";
+						TestTargetID = B4FB3979654C5BB27E588383;
+					};
+				};
+			};
+			buildConfigurationList = 6F82A4258777C872D6D11744 /* Build configuration list for PBXProject "Sherlocked" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = F6D40DD4C495F4EB9B6578B6;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 27CE8B2A0F29855327F12459 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				B4FB3979654C5BB27E588383 /* Sherlocked */,
+				A773A3F379389256E6F9882B /* SherlockedTests */,
+				C424ADE36D2AF709316E401C /* SherlockedUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		96EB337C0CB976B7A6D12AEB /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CA7CB5115062D0558DEE8F0E /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		89D044205C047940BABD0BFB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B17F876AA039C3DF8DD774D8 /* SherlockedSessionTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		938E93A48B2B741A2B09AB76 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				00073A72B5EEA2F86DD05E9C /* AudioAndSpeechEngine.swift in Sources */,
+				D7F60C57EB03AE1C4690D4F4 /* BackendAPIClient.swift in Sources */,
+				19CBAC067274590F90E80566 /* GlassesWearablesCoordinator.swift in Sources */,
+				698175062469AA9A25C7E2F5 /* MainSessionView.swift in Sources */,
+				6ACFF6AB4CB9E28E01248B4D /* ManualCorrectionSheet.swift in Sources */,
+				6D93BE7121AB4B5EC0187983 /* MockGlassesSheetView.swift in Sources */,
+				9778B8452F7694330EB4F6CD /* OnDeviceFaceTracker.swift in Sources */,
+				FF29E64746773CD7F310235B /* OnboardingSheetView.swift in Sources */,
+				3EF8A779F6E355139F457AD5 /* PhoneCameraCaptureSource.swift in Sources */,
+				E00262F7048A2EA3C90F29C0 /* ReplayStudioView.swift in Sources */,
+				D965D9B7DFD07105CA8BC361 /* SessionCoordinator.swift in Sources */,
+				3FFC3744EBEAC58FB0102672 /* SherlockedApp.swift in Sources */,
+				B25805DAB29A06FFB7F6E0AB /* SherlockedModels.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B328331EF909DE3FE6561F23 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5E5E693C5DEC6C4F9D5FC5D9 /* SherlockedUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0B624494A2651EF16A8236CC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B4FB3979654C5BB27E588383 /* Sherlocked */;
+			targetProxy = D5C62C0325562BD1420C8BB0 /* PBXContainerItemProxy */;
+		};
+		E52EE65B94514AF354CB3E83 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B4FB3979654C5BB27E588383 /* Sherlocked */;
+			targetProxy = 2C314B08983530782038F3AC /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6514CFF5D6E98DCB028B5EF1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sherlocked/Sherlocked.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sherlocked/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanmaysahu.sherlocked;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		67894678CE3CA01F31DC61D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanmaysahu.sherlocked.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Sherlocked;
+			};
+			name = Release;
+		};
+		6F2CBED9CE4ED3E579ED6980 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanmaysahu.sherlocked.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sherlocked.app/Sherlocked";
+			};
+			name = Debug;
+		};
+		7511E11EE1AF7213A77C7FDD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanmaysahu.sherlocked.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Sherlocked;
+			};
+			name = Debug;
+		};
+		81A79D9316908B3B81B05AE5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CLIENT_TOKEN = 0;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0.0;
+				META_APP_ID = 0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SHERLOCKED_BACKEND_URL = "http://127.0.0.1:8787";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		8AB302B62A117BD0C5388728 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanmaysahu.sherlocked.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Sherlocked.app/Sherlocked";
+			};
+			name = Release;
+		};
+		A6FFD1E52930860F8986C101 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CLIENT_TOKEN = 0;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 2;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0.0;
+				META_APP_ID = 0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SHERLOCKED_BACKEND_URL = "http://127.0.0.1:8787";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		B3ABEA157A9781BB4B24EEFE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Sherlocked/Sherlocked.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Sherlocked/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.tanmaysahu.sherlocked;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		67FE6DEE54CF1E8BF3E07A32 /* Build configuration list for PBXNativeTarget "Sherlocked" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B3ABEA157A9781BB4B24EEFE /* Debug */,
+				6514CFF5D6E98DCB028B5EF1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		6F82A4258777C872D6D11744 /* Build configuration list for PBXProject "Sherlocked" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A6FFD1E52930860F8986C101 /* Debug */,
+				81A79D9316908B3B81B05AE5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C5E019717DC0A8AC6AEA610F /* Build configuration list for PBXNativeTarget "SherlockedUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7511E11EE1AF7213A77C7FDD /* Debug */,
+				67894678CE3CA01F31DC61D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EC74157D3F9A9AAF88A96CB2 /* Build configuration list for PBXNativeTarget "SherlockedTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F2CBED9CE4ED3E579ED6980 /* Debug */,
+				8AB302B62A117BD0C5388728 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/facebook/meta-wearables-dat-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 1.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		28AABE635378F4DF3A3BC04B /* MWDATCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCore;
+		};
+		3472A5913867643BF39AE944 /* MWDATCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCore;
+		};
+		3B5ADA3E9E6CA2B4EDBD82F4 /* MWDATCamera */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATCamera;
+		};
+		52700444E7D7DAF9D334D857 /* MWDATSpeech */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATSpeech;
+		};
+		9CF26FB1853FBD34ED368F6E /* MWDATMockDevice */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATMockDevice;
+		};
+		F0FA14591723721FFF10C151 /* MWDATMockDevice */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FD6043C972F2143D496BEAB4 /* XCRemoteSwiftPackageReference "meta-wearables-dat-ios" */;
+			productName = MWDATMockDevice;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 7D608D280BC08A7AE9E2CD8C /* Project object */;
+}

@@ -1,0 +1,35 @@
+# Credentials & local config (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+*.xcconfig.local
+
+# Restricted external research datasets (CASME II, SAMM, MU3D, DOLOS, Bag of Lies)
+research/datasets/restricted/
+
+# Runtime databases, downloaded model weights & caches
+*.sqlite3*
+fixtures/clips/*_masked.mp4
+backend/.models/
+backend/.asr_cache/
+research/assets/
+research/generated_clips/
+research/masked_cache/
+
+# Python / Node / Xcode build artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+node_modules/
+dist/
+build/
+DerivedData*/
+ios/DerivedData*/
+*.xcuserdata
+*.xcscmblueprint
+.DS_Store
+*.ipa
+*.dSYM.zip
+*.dSYM

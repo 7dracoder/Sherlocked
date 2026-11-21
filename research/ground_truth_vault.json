@@ -1,0 +1,471 @@
+{
+  "spot_brief_lip_press_01": {
+    "clip_id": "spot_brief_lip_press_01",
+    "category": "spotting",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/spot_brief_lip_press_01.mp4",
+    "fps": 30,
+    "duration_sec": 4.367,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 1.85,
+        "apex_sec": 2.01,
+        "offset_sec": 2.17
+      }
+    ]
+  },
+  "spot_brief_brow_furrow_02": {
+    "clip_id": "spot_brief_brow_furrow_02",
+    "category": "spotting",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/spot_brief_brow_furrow_02.mp4",
+    "fps": 30,
+    "duration_sec": 4.167,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "brow_furrow",
+        "onset_sec": 1.4,
+        "apex_sec": 1.58,
+        "offset_sec": 1.76
+      }
+    ]
+  },
+  "spot_dual_events_03": {
+    "clip_id": "spot_dual_events_03",
+    "category": "spotting",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/spot_dual_events_03.mp4",
+    "fps": 30,
+    "duration_sec": 4.3,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "gaze_shift",
+        "onset_sec": 0.95,
+        "apex_sec": 1.12,
+        "offset_sec": 1.3
+      },
+      {
+        "kind": "lip_press",
+        "onset_sec": 2.75,
+        "apex_sec": 2.93,
+        "offset_sec": 3.12
+      }
+    ]
+  },
+  "spot_zero_movement_neg_01": {
+    "clip_id": "spot_zero_movement_neg_01",
+    "category": "spotting",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/spot_zero_movement_neg_01.mp4",
+    "fps": 30,
+    "duration_sec": 3.633,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "spot_zero_movement_neg_02": {
+    "clip_id": "spot_zero_movement_neg_02",
+    "category": "spotting",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/spot_zero_movement_neg_02.mp4",
+    "fps": 30,
+    "duration_sec": 4.367,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "example_live_lie_demo": {
+    "clip_id": "example_live_lie_demo",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/example_live_lie_demo.mp4",
+    "fps": 24,
+    "duration_sec": 26.909,
+    "actual_lie_story_number": 2,
+    "straight_face_subtype": "natural",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 7.45,
+        "apex_sec": 7.72,
+        "offset_sec": 8.02
+      },
+      {
+        "kind": "gaze_shift",
+        "onset_sec": 8.65,
+        "apex_sec": 8.95,
+        "offset_sec": 9.25
+      }
+    ]
+  },
+  "game_natural_lie2": {
+    "clip_id": "game_natural_lie2",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/game_natural_lie2.mp4",
+    "fps": 24,
+    "duration_sec": 21.333,
+    "actual_lie_story_number": 2,
+    "straight_face_subtype": "natural",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 6.55,
+        "apex_sec": 6.8,
+        "offset_sec": 7.1
+      },
+      {
+        "kind": "gaze_shift",
+        "onset_sec": 7.8,
+        "apex_sec": 8.05,
+        "offset_sec": 8.3
+      }
+    ]
+  },
+  "game_natural_lie1": {
+    "clip_id": "game_natural_lie1",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/game_natural_lie1.mp4",
+    "fps": 24,
+    "duration_sec": 22.292,
+    "actual_lie_story_number": 1,
+    "straight_face_subtype": "natural",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "brow_furrow",
+        "onset_sec": 2.25,
+        "apex_sec": 2.5,
+        "offset_sec": 2.8
+      }
+    ]
+  },
+  "game_natural_lie3": {
+    "clip_id": "game_natural_lie3",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/game_natural_lie3.mp4",
+    "fps": 24,
+    "duration_sec": 20.583,
+    "actual_lie_story_number": 3,
+    "straight_face_subtype": "natural",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 10.6,
+        "apex_sec": 10.88,
+        "offset_sec": 11.15
+      }
+    ]
+  },
+  "sf_all_neutral_lie3": {
+    "clip_id": "sf_all_neutral_lie3",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/sf_all_neutral_lie3.mp4",
+    "fps": 24,
+    "duration_sec": 22.083,
+    "actual_lie_story_number": 3,
+    "straight_face_subtype": "all_neutral_straight_face",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "sf_uncomfortable_truth_lie1": {
+    "clip_id": "sf_uncomfortable_truth_lie1",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/sf_uncomfortable_truth_lie1.mp4",
+    "fps": 24,
+    "duration_sec": 22.333,
+    "actual_lie_story_number": 1,
+    "straight_face_subtype": "uncomfortable_truth",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "brow_furrow",
+        "onset_sec": 6.2,
+        "apex_sec": 6.5,
+        "offset_sec": 6.85
+      }
+    ]
+  },
+  "sf_rehearsed_lie2": {
+    "clip_id": "sf_rehearsed_lie2",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/sf_rehearsed_lie2.mp4",
+    "fps": 24,
+    "duration_sec": 22.333,
+    "actual_lie_story_number": 2,
+    "straight_face_subtype": "rehearsed_lie",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "sf_mostly_true_fabricated_detail_lie1": {
+    "clip_id": "sf_mostly_true_fabricated_detail_lie1",
+    "category": "game",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/sf_mostly_true_fabricated_detail_lie1.mp4",
+    "fps": 24,
+    "duration_sec": 20.167,
+    "actual_lie_story_number": 1,
+    "straight_face_subtype": "mostly_true_one_fabricated_detail",
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 3.4,
+        "apex_sec": 3.62,
+        "offset_sec": 3.86
+      }
+    ]
+  },
+  "deal_friday_constraint": {
+    "clip_id": "deal_friday_constraint",
+    "category": "deal",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/deal_friday_constraint.mp4",
+    "fps": 24,
+    "duration_sec": 7.333,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": "QA security sign-off is still unscheduled and could push delivery past Friday.",
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 3.65,
+        "apex_sec": 3.88,
+        "offset_sec": 4.12
+      }
+    ]
+  },
+  "deal_budget_constraint": {
+    "clip_id": "deal_budget_constraint",
+    "category": "deal",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/deal_budget_constraint.mp4",
+    "fps": 24,
+    "duration_sec": 6.75,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": "Finance approval above $40,000 requires VP sign-off next month.",
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "brow_furrow",
+        "onset_sec": 3.1,
+        "apex_sec": 3.35,
+        "offset_sec": 3.62
+      }
+    ]
+  },
+  "deal_honest_control_01": {
+    "clip_id": "deal_honest_control_01",
+    "category": "deal",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/deal_honest_control_01.mp4",
+    "fps": 24,
+    "duration_sec": 5.333,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "deal_honest_control_02": {
+    "clip_id": "deal_honest_control_02",
+    "category": "deal",
+    "video_path": "/Users/tanmaysahu/Sherlocked/research/generated_clips/deal_honest_control_02.mp4",
+    "fps": 24,
+    "duration_sec": 5.958,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "practice_roleplay_pitch": {
+    "clip_id": "practice_roleplay_pitch",
+    "category": "practice",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/practice_roleplay_pitch.mp4",
+    "fps": 24,
+    "duration_sec": 11.125,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 4.4,
+        "apex_sec": 4.65,
+        "offset_sec": 4.92
+      }
+    ]
+  },
+  "unclear_three_statements": {
+    "clip_id": "unclear_three_statements",
+    "category": "unclear",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/unclear_three_statements.mp4",
+    "fps": 24,
+    "duration_sec": 9.042,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": []
+  },
+  "context_switch_game_to_deal": {
+    "clip_id": "context_switch_game_to_deal",
+    "category": "transition",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/context_switch_game_to_deal.mp4",
+    "fps": 24,
+    "duration_sec": 24.667,
+    "actual_lie_story_number": 2,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 5.2,
+        "apex_sec": 5.45,
+        "offset_sec": 5.7
+      },
+      {
+        "kind": "lip_press",
+        "onset_sec": 14.3,
+        "apex_sec": 14.58,
+        "offset_sec": 14.86
+      }
+    ]
+  },
+  "fail_low_light": {
+    "clip_id": "fail_low_light",
+    "category": "failure",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/fail_low_light.mp4",
+    "fps": 24,
+    "duration_sec": 2.917,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 1.5,
+        "apex_sec": 1.75,
+        "offset_sec": 2.0
+      }
+    ]
+  },
+  "fail_eyewear_occlusion": {
+    "clip_id": "fail_eyewear_occlusion",
+    "category": "failure",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/fail_eyewear_occlusion.mp4",
+    "fps": 24,
+    "duration_sec": 3.25,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "gaze_shift",
+        "onset_sec": 1.4,
+        "apex_sec": 1.65,
+        "offset_sec": 1.9
+      }
+    ]
+  },
+  "fail_fast_head_turn": {
+    "clip_id": "fail_fast_head_turn",
+    "category": "failure",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/fail_fast_head_turn.mp4",
+    "fps": 24,
+    "duration_sec": 3.0,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 1.5,
+        "apex_sec": 1.75,
+        "offset_sec": 2.0
+      }
+    ]
+  },
+  "fail_audio_drift": {
+    "clip_id": "fail_audio_drift",
+    "category": "failure",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/fail_audio_drift.mp4",
+    "fps": 24,
+    "duration_sec": 2.625,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 320.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 1.4,
+        "apex_sec": 1.65,
+        "offset_sec": 1.9
+      }
+    ]
+  },
+  "fail_overlapping_speech": {
+    "clip_id": "fail_overlapping_speech",
+    "category": "failure",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/fail_overlapping_speech.mp4",
+    "fps": 24,
+    "duration_sec": 3.458,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "lip_press",
+        "onset_sec": 1.3,
+        "apex_sec": 1.55,
+        "offset_sec": 1.8
+      }
+    ]
+  },
+  "fail_listener_in_frame": {
+    "clip_id": "fail_listener_in_frame",
+    "category": "failure",
+    "video_path": "/Users/tanmaysahu/Sherlocked/fixtures/clips/fail_listener_in_frame.mp4",
+    "fps": 24,
+    "duration_sec": 3.167,
+    "actual_lie_story_number": null,
+    "straight_face_subtype": null,
+    "secret_constraint": null,
+    "audio_video_drift_ms": 0.0,
+    "ground_truth_movements": [
+      {
+        "kind": "brow_furrow",
+        "onset_sec": 1.3,
+        "apex_sec": 1.6,
+        "offset_sec": 1.9
+      }
+    ]
+  }
+}
