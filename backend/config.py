@@ -83,6 +83,9 @@ class Settings:
     transcribe_model: str = field(
         default_factory=lambda: os.environ.get("SHERLOCKED_TRANSCRIBE_MODEL", "gemini-3.5-transcribe")
     )
+    elevenlabs_api_key: str = field(
+        default_factory=lambda: os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    )
     host: str = field(default_factory=lambda: os.environ.get("SHERLOCKED_HOST", "0.0.0.0"))
     port: int = field(default_factory=lambda: int(os.environ.get("SHERLOCKED_PORT", "8787")))
     restricted_datasets_dir: Path | None = field(
@@ -104,6 +107,10 @@ class Settings:
     @property
     def has_live_gemini(self) -> bool:
         return bool(self.gemini_api_key)
+
+    @property
+    def has_elevenlabs(self) -> bool:
+        return bool(self.elevenlabs_api_key)
 
 
 def get_settings() -> Settings:

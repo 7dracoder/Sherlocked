@@ -6,7 +6,7 @@ struct OnboardingSheetView: View {
     @State private var backendURLDraft: String = ""
     @State private var backendSaveNote: String = ""
 
-    @AppStorage("sherlocked_phone_mic") private var usePhoneMic = false
+    @AppStorage("sherlocked_phone_mic") private var usePhoneMic = true
 
     var body: some View {
         NavigationStack {
@@ -92,9 +92,12 @@ struct OnboardingSheetView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Toggle("Override: use iPhone mic instead of glasses", isOn: $usePhoneMic)
+                        Toggle("Front-speaker mic: iPhone (recommended)", isOn: $usePhoneMic)
                             .disabled(coordinator.isSessionActive)
-                        Text("Default: Ray-Ban Meta glasses mic listens to the person in front of you. Only turn this on if you want the iPhone mic instead (e.g. phone placed near the speaker).")
+                            .accessibilityIdentifier("phone_mic_toggle")
+                        Text(usePhoneMic
+                             ? "iPhone mic captures the person holding/near the phone. Transcription uses ElevenLabs. Glasses still get private speak-back."
+                             : "Glasses mic (HFP) listens to whoever is in front of you. Transcription still uses ElevenLabs.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button {

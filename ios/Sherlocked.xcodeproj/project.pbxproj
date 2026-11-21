@@ -10,6 +10,7 @@
 		00073A72B5EEA2F86DD05E9C /* AudioAndSpeechEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8375E3B1D0C8BAE087B2E987 /* AudioAndSpeechEngine.swift */; };
 		07259614BDADD50A492D4540 /* MWDATSpeech in Frameworks */ = {isa = PBXBuildFile; productRef = 52700444E7D7DAF9D334D857 /* MWDATSpeech */; };
 		19CBAC067274590F90E80566 /* GlassesWearablesCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34CCE229883879A31014FA3D /* GlassesWearablesCoordinator.swift */; };
+		3E2D3FC4CD732716A37248B2 /* ElevenLabsASRClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0971890834D9E3A8766DDDAD /* ElevenLabsASRClient.swift */; };
 		3EF8A779F6E355139F457AD5 /* PhoneCameraCaptureSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE653C0C58EC3CBD4F72DC7F /* PhoneCameraCaptureSource.swift */; };
 		3FE0E72CFF0535A8502C700A /* MWDATCamera in Frameworks */ = {isa = PBXBuildFile; productRef = 3B5ADA3E9E6CA2B4EDBD82F4 /* MWDATCamera */; };
 		3FFC3744EBEAC58FB0102672 /* SherlockedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8669304B51F2AB11DF081E6 /* SherlockedApp.swift */; };
@@ -49,6 +50,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		0971890834D9E3A8766DDDAD /* ElevenLabsASRClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ElevenLabsASRClient.swift; sourceTree = "<group>"; };
 		1267007D902BD7E892692EC2 /* ReplayStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplayStudioView.swift; sourceTree = "<group>"; };
 		291B2FE040B2713BFF04E639 /* ManualCorrectionSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ManualCorrectionSheet.swift; sourceTree = "<group>"; };
 		2FCD9D6A0AE8853C902ACB4B /* SherlockedTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SherlockedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -99,6 +101,7 @@
 			children = (
 				8375E3B1D0C8BAE087B2E987 /* AudioAndSpeechEngine.swift */,
 				A6FD3DD76610076EC2865BD4 /* BackendAPIClient.swift */,
+				0971890834D9E3A8766DDDAD /* ElevenLabsASRClient.swift */,
 				34CCE229883879A31014FA3D /* GlassesWearablesCoordinator.swift */,
 				FF6FE0DECC303E6D11E3507E /* OnDeviceFaceTracker.swift */,
 				EE653C0C58EC3CBD4F72DC7F /* PhoneCameraCaptureSource.swift */,
@@ -320,6 +323,7 @@
 			files = (
 				00073A72B5EEA2F86DD05E9C /* AudioAndSpeechEngine.swift in Sources */,
 				D7F60C57EB03AE1C4690D4F4 /* BackendAPIClient.swift in Sources */,
+				3E2D3FC4CD732716A37248B2 /* ElevenLabsASRClient.swift in Sources */,
 				19CBAC067274590F90E80566 /* GlassesWearablesCoordinator.swift in Sources */,
 				698175062469AA9A25C7E2F5 /* MainSessionView.swift in Sources */,
 				6ACFF6AB4CB9E28E01248B4D /* ManualCorrectionSheet.swift in Sources */,

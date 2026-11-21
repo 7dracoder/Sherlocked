@@ -115,6 +115,33 @@ struct MainSessionView: View {
                     .accessibilityIdentifier("readonly_activity_indicator")
             }
 
+            HStack(spacing: 8) {
+                Label(coordinator.audioEngine.micSourceLabel, systemImage: "mic.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("mic_source_label")
+                Text("·")
+                    .foregroundStyle(.secondary)
+                Label(coordinator.audioEngine.asrProviderLabel, systemImage: "waveform")
+                    .font(.caption2)
+                    .foregroundStyle(.mint)
+                    .accessibilityIdentifier("asr_provider_label")
+                Spacer()
+                if !coordinator.isSessionActive {
+                    Toggle(isOn: Binding(
+                        get: { UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") },
+                        set: { UserDefaults.standard.set($0, forKey: "sherlocked_phone_mic") }
+                    )) {
+                        Text("Phone mic")
+                            .font(.caption2)
+                    }
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .accessibilityLabel("Use iPhone mic for front speaker")
+                    .accessibilityIdentifier("live_phone_mic_toggle")
+                }
+            }
+
             Text(coordinator.statusLabel)
                 .font(.footnote)
                 .foregroundStyle(.secondary)

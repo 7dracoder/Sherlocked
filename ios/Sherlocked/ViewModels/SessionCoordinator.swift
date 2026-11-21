@@ -76,7 +76,9 @@ final class SessionCoordinator: ObservableObject {
 
         Task { @MainActor [weak self] in
             guard let self else { return }
-            self.configuredBackendURL = await self.apiClient.baseURL
+            let url = await self.apiClient.baseURL
+            self.configuredBackendURL = url
+            self.audioEngine.configureBackendURL(url)
         }
 
         if ProcessInfo.processInfo.arguments.contains("--auto-register-meta") {
@@ -166,6 +168,10 @@ final class SessionCoordinator: ObservableObject {
             self?.objectWillChange.send()
         }.store(in: &cancellables)
         audioEngine.$recognitionIssue.sink { [weak self] message in
+            // Soft ASR reconnect noise — don't block the live UI with it.
+            if let message, message.contains("ElevenLabs reconnecting") {
+                return
+            }
             if let message {
                 self?.recoveryBannerMessage = message
             } else if self?.recoveryBannerMessage?.hasPrefix("Speech recognition is reconnecting.") == true {
@@ -602,6 +608,7 @@ final class SessionCoordinator: ObservableObject {
     func updateBackendEndpoint(_ urlString: String) async {
         await apiClient.updateBaseURL(urlString)
         configuredBackendURL = await apiClient.baseURL
+        audioEngine.configureBackendURL(configuredBackendURL)
         await loadFixtures()
     }
 }

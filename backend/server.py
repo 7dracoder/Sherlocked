@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Query
+import httpx
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 
 from .config import FIXTURES_DIR, RESEARCH_DIR, LearnedWeights, get_settings
+from .elevenlabs_asr import proxy_elevenlabs_realtime, transcribe_pcm16_wav_bytes, utterances_from_eleven_response
 from .gemini_pipeline import SherlockedPipeline
 from .schemas import (
     CaptureSourceKind,
@@ -21,6 +26,8 @@ from .schemas import (
     SessionAnalyzeResponse,
 )
 from .vision_tracker import render_face_masked_video
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Sherlocked Multimodal Inference Server",
@@ -54,6 +61,8 @@ def health() -> dict[str, Any]:
     return {
         "status": "ok",
         "live_gemini_configured": settings.has_live_gemini,
+        "elevenlabs_configured": settings.has_elevenlabs,
+        "asr_provider": "elevenlabs" if settings.has_elevenlabs else "apple_or_whisper_fallback",
         "execution_mode": "live_gemini" if settings.has_live_gemini else "local_multimodal_engine",
         "models": {
             "neon": settings.neon_model,
@@ -70,6 +79,106 @@ def health() -> dict[str, Any]:
             "scientific_status": weights.scientific_status,
         },
     }
+
+
+class ASRChunkRequest(BaseModel):
+    """Short WAV/PCM clip from the phone for ElevenLabs batch STT."""
+
+    audio_wav_base64: str
+    time_offset_sec: float = 0.0
+    utterance_start_index: int = 1
+
+
+@app.post("/api/v1/asr/transcribe")
+async def asr_transcribe_chunk(req: ASRChunkRequest) -> dict[str, Any]:
+    settings = get_settings()
+    if not settings.has_elevenlabs:
+        raise HTTPException(status_code=503, detail="ELEVENLABS_API_KEY is not configured on the server.")
+    try:
+        wav_bytes = base64.b64decode(req.audio_wav_base64)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Invalid audio_wav_base64") from exc
+    if len(wav_bytes) < 200:
+        raise HTTPException(status_code=400, detail="Audio clip too short.")
+    try:
+        payload = await transcribe_pcm16_wav_bytes(settings.elevenlabs_api_key, wav_bytes)
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"ElevenLabs error: {exc.response.text[:400]}") from exc
+    except Exception as exc:
+        logger.exception("ElevenLabs batch STT failed")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    utterances = utterances_from_eleven_response(
+        payload,
+        time_offset_sec=req.time_offset_sec,
+        start_index=req.utterance_start_index,
+    )
+    return {
+        "provider": "elevenlabs",
+        "text": payload.get("text") or "",
+        "utterances": utterances,
+        "raw_word_count": len(payload.get("words") or []),
+    }
+
+
+@app.websocket("/api/v1/asr/live")
+async def asr_live_ws(websocket: WebSocket) -> None:
+    """Phone/glasses PCM stream → ElevenLabs Scribe realtime → partial/committed transcripts."""
+    await websocket.accept()
+    settings = get_settings()
+    if not settings.has_elevenlabs:
+        await websocket.send_json({"type": "error", "detail": "ELEVENLABS_API_KEY is not configured."})
+        await websocket.close(code=1013)
+        return
+
+    queue: asyncio.Queue[bytes | dict[str, Any] | None] = asyncio.Queue(maxsize=64)
+
+    async def client_audio() -> Any:
+        while True:
+            item = await queue.get()
+            if item is None:
+                break
+            yield item
+
+    async def send_to_client(msg: dict[str, Any]) -> None:
+        await websocket.send_json(msg)
+
+    proxy_task = asyncio.create_task(
+        proxy_elevenlabs_realtime(settings.elevenlabs_api_key, client_audio(), send_to_client)
+    )
+    try:
+        while True:
+            message = await websocket.receive()
+            if message.get("type") == "websocket.disconnect":
+                break
+            if "bytes" in message and message["bytes"] is not None:
+                try:
+                    queue.put_nowait(message["bytes"])
+                except asyncio.QueueFull:
+                    _ = queue.get_nowait()
+                    queue.put_nowait(message["bytes"])
+            elif "text" in message and message["text"] is not None:
+                try:
+                    payload = json.loads(message["text"])
+                except json.JSONDecodeError:
+                    continue
+                if payload.get("type") == "commit" or payload.get("commit"):
+                    await queue.put({"commit": True})
+                elif payload.get("type") == "audio" and payload.get("audio_base_64"):
+                    raw = base64.b64decode(payload["audio_base_64"])
+                    await queue.put(raw)
+                elif payload.get("type") == "end":
+                    break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await queue.put(None)
+        proxy_task.cancel()
+        try:
+            await proxy_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("ASR live proxy ended with error")
 
 
 @app.post("/api/v1/session/analyze", response_model=SessionAnalyzeResponse)
