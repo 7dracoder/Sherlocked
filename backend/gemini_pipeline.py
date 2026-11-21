@@ -32,16 +32,28 @@ from .session_store import SessionRecord, SessionStore
 from .vision_tracker import FacialObservationTracker
 
 # Tolerates common front-speaker / glasses-mic ASR misses after soft normalization.
-GAME_RULE_PATTERN = re.compile(
-    r"\b("
-    r"(?:to|too|two|2|true)\s+truths?\s*[, ]*(?:(?:and|in|&|an)\s+)?(?:(?:a|one|1|the)\s+)?(?:lie|alive|rely)"
-    r"|two\s+true.{0,24}(?:one|a)\s+lie"
-    r"|three\s+(?:stories|statements).{0,40}one\s+(?:is\s+a\s+)?lie"
-    r"|guess\s+which\s+(?:one|story)\s+is\s+(?:the\s+)?lie"
-    r"|play\s+(?:a\s+)?(?:game\s+of\s+)?(?:to|too|two|2)\s+truths?"
-    r")\b",
-    re.IGNORECASE,
+_GAME_RULE_AND_LIE = r"[, ]*(?:(?:and|in|&|an)\s+)?(?:(?:a|one|1|the)\s+)?(?:lie|alive|rely|line|ally)"
+_GAME_RULE_BODY = (
+    r"(?:let'?s\s+)?play\s+(?:a\s+)?(?:game\s+of\s+)?"
+    r"(?:to|too|two|2|true)\s+truths?"
+    + _GAME_RULE_AND_LIE
+    + r"?"
+    + r"|(?:to|too|two|2|true)\s+truths?"
+    + _GAME_RULE_AND_LIE
+    + r"|two\s+true.{0,24}(?:one|a)\s+lie"
+    + r"|three\s+(?:stories|statements).{0,40}one\s+(?:is\s+a\s+)?lie"
+    + r"|guess\s+which\s+(?:one|story)\s+is\s+(?:the\s+)?lie"
 )
+GAME_RULE_PATTERN = re.compile(r"\b(?:" + _GAME_RULE_BODY + r")\b", re.IGNORECASE)
+
+
+def _find_game_rule(text: str) -> re.Match | None:
+    """Pick the invitation match that consumes the most text (avoids stopping at 'truths')."""
+    best: re.Match | None = None
+    for m in GAME_RULE_PATTERN.finditer(text):
+        if best is None or m.end() > best.end():
+            best = m
+    return best
 _ASR_INVITE_FIXES = [
     (re.compile(r"\bto truths\b", re.IGNORECASE), "two truths"),
     (re.compile(r"\btoo truths\b", re.IGNORECASE), "two truths"),
@@ -83,13 +95,33 @@ REVEAL_SPEECH_PATTERN = re.compile(
 )
 ORDINAL_SPLITS = [
     (1, re.compile(r"^(?:(?:story|number|statement)\s+)?(?:one|1|first(?:ly)?)\b[,:.\s-]*", re.IGNORECASE)),
-    (2, re.compile(r"^(?:(?:story|number|statement)\s+)?(?:two|2|second(?:ly)?)\b[,:.\s-]*", re.IGNORECASE)),
+    (2, re.compile(r"^(?:(?:story|number|statement)\s+)?(?:two|too|2|second(?:ly)?)\b[,:.\s-]*", re.IGNORECASE)),
     (3, re.compile(r"^(?:(?:story|number|statement)\s+)?(?:three|3|third(?:ly)?)\b[,:.\s-]*", re.IGNORECASE)),
 ]
 INLINE_ORDINAL_SPLITS = [
-    (1, re.compile(r"(?:(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)(?:one|1|first(?:ly)?)\b[,:.\s-]+", re.IGNORECASE)),
-    (2, re.compile(r"(?:(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)(?:two|2|second(?:ly)?)\b[,:.\s-]+|\b(?:two|2)\s+(?=I\b|my\b)", re.IGNORECASE)),
-    (3, re.compile(r"(?:(?:^|[.!?;]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)(?:three|3|third(?:ly)?)\b[,:.\s-]+|\b(?:three|3)\s+(?=I\b|my\b)", re.IGNORECASE)),
+    (1, re.compile(
+        r"(?:(?:^|[.!?;:]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)"
+        r"(?:one|1|first(?:ly)?)\b[,:.\s-]+",
+        re.IGNORECASE,
+    )),
+    (2, re.compile(
+        r"(?:(?:^|[.!?;:]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)"
+        r"(?:two|too|2|second(?:ly)?)\b[,:.\s-]+"
+        r"|\b(?:two|too|2)\s+(?=I\b|I'm\b|I\s|my\b)",
+        re.IGNORECASE,
+    )),
+    (3, re.compile(
+        r"(?:(?:^|[.!?;:]\s+)(?:(?:story|number|statement)\s+)?|\b(?:story|number|statement)\s+)"
+        r"(?:three|3|third(?:ly)?)\b[,:.\s-]+"
+        r"|\b(?:three|3)\s+(?=I\b|I'm\b|I\s|my\b)",
+        re.IGNORECASE,
+    )),
+]
+# Looser markers for a single mega-transcript with no clean sentence breaks.
+_LOOSE_STORY_MARKERS = [
+    (1, re.compile(r"(?:^|\s)(?:(?:story|number|statement)\s+)?(?:one|1|first(?:ly)?)\b(?:\s*[,:\-–—]|\s+)", re.IGNORECASE)),
+    (2, re.compile(r"(?:^|\s)(?:(?:story|number|statement)\s+)?(?:two|too|2|second(?:ly)?)\b(?:\s*[,:\-–—]|\s+)", re.IGNORECASE)),
+    (3, re.compile(r"(?:^|\s)(?:(?:story|number|statement)\s+)?(?:three|3|third(?:ly)?)\b(?:\s*[,:\-–—]|\s+)", re.IGNORECASE)),
 ]
 HEDGING_WORDS = re.compile(
     r"\b(kind of|sort of|basically|probably|around|may\s?be|i guess|at some point|somewhere|stuff like that|or something|pretty much)\b",
@@ -123,6 +155,171 @@ def _normalize_utterances_asr(utterances: Sequence[UtteranceSegment]) -> list[Ut
         else:
             fixed.append(u)
     return fixed
+
+
+def _slice_utt(u: UtteranceSegment, text: str, start_frac: float, end_frac: float) -> UtteranceSegment:
+    dur = max(0.1, u.end_sec - u.start_sec)
+    return u.model_copy(
+        update={
+            "text": text.strip().rstrip(".") + ("" if text.strip().endswith((".", "!", "?")) else "."),
+            "start_sec": round(u.start_sec + start_frac * dur, 3),
+            "end_sec": round(u.start_sec + end_frac * dur, 3),
+        }
+    )
+
+
+def _carve_three_stories_from_utterances(
+    player_utts: Sequence[UtteranceSegment],
+    existing: dict[int, list[UtteranceSegment]] | None = None,
+) -> dict[int, list[UtteranceSegment]]:
+    """
+    Recover three stories when live ASR dumps the whole round into one/two utterances.
+    Priority: loose ordinals → sentence groups → pause-separated utterances → word thirds.
+    """
+    if not player_utts:
+        return {}
+
+    # 2 pause-separated utterances already? Keep story1, split the longer remainder.
+    if len(player_utts) == 2 and (not existing or len(existing) <= 1):
+        first, second = player_utts[0], player_utts[1]
+        gap = second.start_sec - first.end_sec
+        if gap >= 0.35 and len(second.text.split()) >= 8:
+            sub = _carve_three_stories_from_utterances([second], existing=None)
+            if len(sub) >= 2:
+                out = {1: [first]}
+                # Remap sub 1/2 → 2/3 (or keep numbers if already 2/3)
+                nums = sorted(sub.keys())
+                if nums == [1, 2]:
+                    out[2] = sub[1]
+                    out[3] = sub[2]
+                else:
+                    out.update(sub)
+                return out
+
+    joined = " ".join(u.text.strip() for u in player_utts).strip()
+    if len(joined.split()) < 9:
+        return dict(existing or {})
+
+    t0 = player_utts[0].start_sec
+    t1 = player_utts[-1].end_sec
+    dur = max(0.3, t1 - t0)
+
+    def _pack(parts: list[str]) -> dict[int, list[UtteranceSegment]]:
+        clean = [p.strip() for p in parts if p and len(p.strip().split()) >= 3]
+        if len(clean) < 3:
+            return {}
+        # Keep the three most substantial chunks in order (first / middle / last).
+        if len(clean) > 3:
+            clean = [clean[0], " ".join(clean[1:-1]), clean[-1]]
+        out: dict[int, list[UtteranceSegment]] = {}
+        cursor = 0
+        total = max(1, len(joined))
+        for idx, text in enumerate(clean[:3], start=1):
+            # Approximate time by character offset in the joined string.
+            pos = joined.lower().find(text[: min(24, len(text))].lower(), cursor)
+            if pos < 0:
+                pos = cursor
+            end_pos = pos + len(text)
+            cursor = end_pos
+            start_frac = pos / total
+            end_frac = min(1.0, end_pos / total)
+            synthetic = player_utts[0].model_copy(
+                update={
+                    "text": text if text.endswith((".", "!", "?")) else text + ".",
+                    "start_sec": round(t0 + start_frac * dur, 3),
+                    "end_sec": round(t0 + end_frac * dur, 3),
+                    "pause_before_sec": 0.2 if idx > 1 else player_utts[0].pause_before_sec,
+                }
+            )
+            out[idx] = [synthetic]
+        return out if len(out) == 3 else {}
+
+    # 1) Loose ordinal markers across the full transcript.
+    hits: list[tuple[int, int]] = []
+    for num, pat in _LOOSE_STORY_MARKERS:
+        m = pat.search(joined)
+        if m:
+            hits.append((m.start(), num))
+    hits = sorted({(pos, num) for pos, num in hits}, key=lambda x: x[0])
+    # Prefer increasing 1→2→3 order; drop out-of-order duplicates.
+    ordered: list[tuple[int, int]] = []
+    seen: set[int] = set()
+    for pos, num in hits:
+        if num in seen:
+            continue
+        if ordered and num < ordered[-1][1]:
+            continue
+        ordered.append((pos, num))
+        seen.add(num)
+    if len(ordered) >= 2:
+        parts: list[str] = []
+        # Leading text before first marker → story 1 if marker isn't 1 at start.
+        if ordered[0][0] > 10 and ordered[0][1] != 1:
+            lead = joined[: ordered[0][0]].strip()
+            if len(lead.split()) >= 3:
+                parts.append(lead)
+        for i, (pos, _) in enumerate(ordered):
+            end = ordered[i + 1][0] if i + 1 < len(ordered) else len(joined)
+            chunk = joined[pos:end].strip()
+            if chunk:
+                parts.append(chunk)
+        packed = _pack(parts)
+        if len(packed) == 3:
+            return packed
+
+    # 2) Sentence split into ~3 groups.
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+", joined) if s.strip()]
+    if len(sentences) >= 3:
+        # Greedy pack into 3 buckets with balanced word counts.
+        total_words = sum(len(s.split()) for s in sentences) or 1
+        target = total_words / 3.0
+        groups: list[list[str]] = [[], [], []]
+        gi = 0
+        count = 0
+        for s in sentences:
+            groups[gi].append(s)
+            count += len(s.split())
+            if gi < 2 and count >= target * 0.85:
+                gi += 1
+                count = 0
+        packed = _pack([" ".join(g) for g in groups])
+        if len(packed) == 3:
+            return packed
+
+    # 3) Multiple short utterances (≥2) without ordinals — map by order / pause.
+    if len(player_utts) >= 3:
+        return {
+            1: [player_utts[0]],
+            2: [player_utts[1]],
+            3: [player_utts[2]],
+        }
+    if len(player_utts) == 2:
+        a, b = player_utts
+        words_b = b.text.split()
+        if len(words_b) >= 8:
+            mid = len(words_b) // 2
+            left = " ".join(words_b[:mid])
+            right = " ".join(words_b[mid:])
+            mid_t = (b.start_sec + b.end_sec) / 2.0
+            return {
+                1: [a],
+                2: [b.model_copy(update={"text": left + ".", "end_sec": mid_t})],
+                3: [b.model_copy(update={"text": right + ".", "start_sec": mid_t})],
+            }
+
+    # 4) Last resort: equal word thirds on the mega-string.
+    words = joined.split()
+    if len(words) >= 9:
+        n = len(words)
+        i1, i2 = max(3, n // 3), max(6, (2 * n) // 3)
+        if i1 >= i2:
+            i2 = min(n - 3, i1 + 3)
+        parts = [" ".join(words[:i1]), " ".join(words[i1:i2]), " ".join(words[i2:])]
+        packed = _pack(parts)
+        if len(packed) == 3:
+            return packed
+
+    return dict(existing or {})
 
 
 def _softmax(scores: list[float]) -> list[float]:
@@ -370,7 +567,8 @@ class SherlockedPipeline:
             return []
 
         # Match the invitation across pauses, including a first story in the same segment.
-        rule = GAME_RULE_PATTERN.search(" ".join(u.text for u in utterances))
+        joined = " ".join(u.text for u in utterances)
+        rule = _find_game_rule(joined)
         if rule is None:
             return []
         story_utts: list[UtteranceSegment] = []
@@ -379,6 +577,7 @@ class SherlockedPipeline:
             start = max(0, rule.end() - offset)
             offset += len(u.text) + 1
             tail = u.text[start:].strip(" .,:;-")
+            # Invite-only utterance (e.g. "let's play two truths and a lie") — skip.
             if not tail:
                 continue
             if FOLLOWUP_REQUEST_PATTERN.search(tail):
@@ -388,6 +587,11 @@ class SherlockedPipeline:
                     continue
                 fraction = start / max(1, len(u.text))
                 u = u.model_copy(update={"text": tail, "start_sec": u.start_sec + fraction * (u.end_sec - u.start_sec)})
+            # Drop residual invite crumbs that leaked past a short regex match.
+            if GAME_RULE_PATTERN.fullmatch(tail.strip(" .")) or re.fullmatch(
+                r"(?:and\s+)?(?:a\s+)?lie\.?", tail.strip(), flags=re.IGNORECASE
+            ):
+                continue
             story_utts.append(u)
 
         if not story_utts:
@@ -413,11 +617,30 @@ class SherlockedPipeline:
                     inline_hits.append((m.start(), num))
             inline_hits.sort(key=lambda x: x[0])
 
-            if len(inline_hits) >= 2:
+            # One utterance often carries story 1+2+3 with ordinals mid-stream.
+            if len(inline_hits) >= 2 or (
+                len(inline_hits) == 1 and len({n for _, n in inline_hits}) == 1 and inline_hits[0][0] > 0
+                and current_num in (0, 1, 2)
+            ):
                 dur = max(0.1, u.end_sec - u.start_sec)
                 tot_len = max(1, len(stripped))
-                for idx_h, (pos, num) in enumerate(inline_hits):
-                    end_pos = inline_hits[idx_h + 1][0] if (idx_h + 1) < len(inline_hits) else tot_len
+                # If the first hit isn't at the start, keep the leading clause in the current story.
+                work_hits = list(inline_hits)
+                if work_hits and work_hits[0][0] > 8 and current_num in (0, 1, 2, 3):
+                    lead_num = current_num if current_num in (1, 2, 3) else 1
+                    lead_txt = stripped[: work_hits[0][0]].strip(" .")
+                    if lead_txt and len(lead_txt.split()) >= 3:
+                        buckets.setdefault(lead_num, []).append(
+                            u.model_copy(
+                                update={
+                                    "text": lead_txt + ".",
+                                    "end_sec": u.start_sec + (work_hits[0][0] / tot_len) * dur,
+                                }
+                            )
+                        )
+                        current_num = lead_num
+                for idx_h, (pos, num) in enumerate(work_hits):
+                    end_pos = work_hits[idx_h + 1][0] if (idx_h + 1) < len(work_hits) else tot_len
                     sub_txt = stripped[pos:end_pos].strip(" .")
                     if sub_txt:
                         s_t = u.start_sec + (pos / tot_len) * dur
@@ -472,12 +695,29 @@ class SherlockedPipeline:
                     buckets[2] = buckets[2][:last_i]
 
         # Fallback B: speaker told 3 separate utterances without saying "one/two/three"
-        if len(buckets) < 3 and len(player_utts) >= 3 and len(buckets) <= 1:
-            buckets = {
-                1: [player_utts[0]],
-                2: [player_utts[1]],
-                3: [player_utts[2]],
-            }
+        if len(buckets) < 3 and len(player_utts) >= 3:
+            # Take the last 3 substantive utterances (skip invite crumbs already filtered).
+            substantive = [u for u in player_utts if len(u.text.split()) >= 3][-3:]
+            if len(substantive) >= 3:
+                buckets = {
+                    1: [substantive[0]],
+                    2: [substantive[1]],
+                    3: [substantive[2]],
+                }
+            elif len(buckets) <= 1 and len(player_utts) >= 3:
+                buckets = {
+                    1: [player_utts[0]],
+                    2: [player_utts[1]],
+                    3: [player_utts[2]],
+                }
+
+        # Fallback C: one mega-transcript (common with live Apple/ElevenLabs) — carve into 3 stories.
+        if len(buckets) < 3:
+            carved = _carve_three_stories_from_utterances(player_utts, existing=buckets)
+            if len(carved) >= 3:
+                buckets = carved
+            elif len(carved) > len(buckets):
+                buckets = carved
 
         usable_frame_ids = {f.frame_id for f in frames if f.face_visible and f.usable and f.speaker_attributed}
         stories: list[StorySpan] = []
@@ -1191,7 +1431,9 @@ class SherlockedPipeline:
                         modality_mode=req.modality_mode,
                         is_followup=False,
                     )
-                    if self.settings.has_live_gemini:
+                    # Live play needs a fast private whisper — skip blocking Gemini on live turns.
+                    # Evaluation / replay still get the full live-LLM enhance path.
+                    if self.settings.has_live_gemini and (req.is_evaluation or req.is_replay):
                         try:
                             candidate_guess, _, _, live_meta = self._enhance_with_live_gemini(
                                 activity=activity,
@@ -1207,6 +1449,9 @@ class SherlockedPipeline:
                         except Exception as exc:
                             execution_mode = "local_multimodal_engine"
                             live_meta = {"gemini_fallback_error": str(exc)}
+                    else:
+                        execution_mode = "local_multimodal_engine"
+                        live_meta = {"live_fast_path": True}
                     assert candidate_guess is not None
                     session.initial_guess = candidate_guess
                     spoken_cue = candidate_guess.spoken_whisper

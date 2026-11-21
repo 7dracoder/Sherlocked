@@ -72,6 +72,12 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     private var elevenLabsGain: Float = 1.6
     /// Audio-tap thread reads these without hopping to MainActor.
     private let tapFlags = TapFlags()
+    private var lastSpeechEnergyAt: TimeInterval = 0
+    private var silenceWatchTask: Task<Void, Never>?
+    private var silenceFinalized = false
+    private var latestPartialFormatted: String = ""
+    /// Fired when the speaker goes quiet so the coordinator can analyze immediately.
+    var onSpeechPaused: (() -> Void)?
 
     private final class TapFlags: @unchecked Sendable {
         private let lock = NSLock()
@@ -355,6 +361,8 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         livePartialTranscript = ""
         onFirstAudioDelivered = onFirstAudioBuffer
         onUtteranceUpdated = onUtteranceCommitted
+        silenceFinalized = false
+        lastSpeechEnergyAt = CACurrentMediaTime()
         converter = nil
         targetASRFormat = nil
 
@@ -419,12 +427,17 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.micLevel = max(self.micLevel * 0.6, level)
+                if level > 0.045 {
+                    self.lastSpeechEnergyAt = CACurrentMediaTime()
+                    self.silenceFinalized = false
+                }
                 if !self.isMicrophoneFlowing {
                     self.isMicrophoneFlowing = true
                     self.onFirstAudioDelivered?()
                     self.publishMicStatus()
                 }
                 self.enqueuePCM16ForElevenLabs(pcm16)
+                self.armSilenceWatch()
             }
         }
 
@@ -768,6 +781,11 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
             level = min(1.0, (sum / Double(max(1, frames / step))) * 5.0)
         }
         micLevel = max(micLevel * 0.5, level)
+        if level > 0.045 {
+            lastSpeechEnergyAt = CACurrentMediaTime()
+            silenceFinalized = false
+        }
+        armSilenceWatch()
         if !isMicrophoneFlowing {
             isMicrophoneFlowing = true
             onFirstAudioDelivered?()
@@ -826,10 +844,83 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         return out
     }
 
+    private func commitPlainTranscript(_ text: String) {
+        let normalized = Self.normalizeFrontSpeakerASR(text)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return }
+        // Avoid duplicating the same committed clause.
+        if let last = utterances.last, last.text == normalized { return }
+        let now = max(0, CACurrentMediaTime() - sessionStartClock)
+        let start = utterances.last?.end_sec ?? max(0, now - 1.0)
+        var rebuilt = completedUtterances.isEmpty ? utterances : completedUtterances
+        // If the last utterance is a growing prefix of this text, replace it.
+        if let last = rebuilt.last, normalized.hasPrefix(last.text), normalized.count > last.text.count {
+            rebuilt[rebuilt.count - 1] = UtteranceSegmentDTO(
+                segment_id: last.segment_id,
+                text: normalized,
+                start_sec: last.start_sec,
+                end_sec: (now * 100).rounded() / 100,
+                pause_before_sec: last.pause_before_sec,
+                speech_rate_wps: Double(normalized.split(separator: " ").count) / max(0.2, now - last.start_sec)
+            )
+        } else {
+            rebuilt.append(
+                UtteranceSegmentDTO(
+                    segment_id: String(format: "utt_%03d", rebuilt.count + 1),
+                    text: normalized,
+                    start_sec: (start * 100).rounded() / 100,
+                    end_sec: (now * 100).rounded() / 100,
+                    pause_before_sec: 0.2,
+                    speech_rate_wps: Double(normalized.split(separator: " ").count) / max(0.2, now - start)
+                )
+            )
+        }
+        utterances = rebuilt
+        completedUtterances = rebuilt
+        livePartialTranscript = rebuilt.map(\.text).joined(separator: " ")
+        onUtteranceUpdated?()
+    }
+
+    private func armSilenceWatch() {
+        silenceWatchTask?.cancel()
+        silenceWatchTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(700))
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                self?.handlePossibleSpeechPause()
+            }
+        }
+    }
+
+    private func handlePossibleSpeechPause() {
+        let quietFor = CACurrentMediaTime() - lastSpeechEnergyAt
+        guard quietFor >= 0.65, !silenceFinalized else { return }
+        let hasContent = !livePartialTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !utterances.isEmpty
+        guard hasContent else { return }
+        silenceFinalized = true
+        // Snapshot the newest partial clause only (not the whole joined transcript).
+        let newest = latestPartialFormatted.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !newest.isEmpty {
+            commitPlainTranscript(newest)
+        } else if !utterances.isEmpty {
+            onUtteranceUpdated?()
+        }
+        flushElevenLabsChunk()
+        recognitionRequest?.endAudio()
+        onSpeechPaused?()
+        // isFinal handler in beginRecognition restarts the task; clear the gate shortly after.
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            self.silenceFinalized = false
+        }
+    }
+
     func consumeSpeechSnapshot(_ result: SpeechSnapshot) {
         let normalizedFormatted = Self.normalizeFrontSpeakerASR(result.formattedString)
         // Always update the live UI text — even when word timestamps are missing.
         if !normalizedFormatted.isEmpty {
+            latestPartialFormatted = normalizedFormatted
             livePartialTranscript = (completedUtterances.map(\.text) + [normalizedFormatted])
                 .filter { !$0.isEmpty }
                 .joined(separator: " ")
@@ -837,24 +928,9 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
 
         let segments = result.segments
         guard let first = segments.first else {
-            // No timestamps yet — still commit plain text so analysis can run.
-            if result.isFinal, !normalizedFormatted.isEmpty {
-                let now = max(0, CACurrentMediaTime() - sessionStartClock)
-                let start = utterances.last?.end_sec ?? max(0, now - 1.0)
-                var rebuilt = completedUtterances
-                rebuilt.append(
-                    UtteranceSegmentDTO(
-                        segment_id: String(format: "utt_%03d", rebuilt.count + 1),
-                        text: normalizedFormatted,
-                        start_sec: (start * 100).rounded() / 100,
-                        end_sec: (now * 100).rounded() / 100,
-                        pause_before_sec: 0.2,
-                        speech_rate_wps: Double(normalizedFormatted.split(separator: " ").count) / max(0.2, now - start)
-                    )
-                )
-                utterances = rebuilt
-                completedUtterances = rebuilt
-                onUtteranceUpdated?()
+            // No timestamps — commit plain text on final OR when we already have enough words.
+            if !normalizedFormatted.isEmpty, result.isFinal || normalizedFormatted.split(separator: " ").count >= 6 {
+                commitPlainTranscript(normalizedFormatted)
             }
             return
         }
@@ -872,8 +948,8 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
             let wEnd = wStart + max(0.08, seg.duration)
             let gap = wStart - prevEnd
 
-            // Longer gap keeps clauses intact for clearer story segmentation.
-            if !currentWords.isEmpty && gap > 0.72 {
+            // Split on short pauses so stories don't collapse into one utterance.
+            if !currentWords.isEmpty && gap > 0.45 {
                 let cText = Self.normalizeFrontSpeakerASR(currentWords.map(\.word).joined(separator: " "))
                 let s0 = clauseStart ?? 0.0
                 let s1 = currentWords.last?.end_sec ?? wStart
@@ -1013,10 +1089,13 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         elevenFlushLoopTask = nil
         elevenTranscribeTask?.cancel()
         elevenTranscribeTask = nil
+        silenceWatchTask?.cancel()
+        silenceWatchTask = nil
         flushElevenLabsChunk()
         speechInput.replace(nil)
         datPCMFlowing = false
         tapFlags.skipHFPTap = false
+        silenceFinalized = false
         if tapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)
             tapInstalled = false

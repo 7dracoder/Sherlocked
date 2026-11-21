@@ -174,6 +174,11 @@ final class SessionCoordinator: ObservableObject {
         audioEngine.$micLevel.sink { [weak self] _ in
             self?.objectWillChange.send()
         }.store(in: &cancellables)
+        audioEngine.onSpeechPaused = { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.scheduleSpeechUpdate(afterSilence: true)
+            }
+        }
         audioEngine.$recognitionIssue.sink { [weak self] message in
             // Soft ASR reconnect noise — don't block the live UI with it.
             if let message, message.contains("ElevenLabs reconnecting") {
@@ -472,11 +477,11 @@ final class SessionCoordinator: ObservableObject {
 
     // MARK: - Shared Pipeline Turn Execution
 
-    private func scheduleSpeechUpdate() {
+    private func scheduleSpeechUpdate(afterSilence: Bool = false) {
         speechDebounce?.cancel()
         speechDebounce = Task {
-            // Short pause so front-speaker ASR can settle — keep snappy for live cue.
-            try? await Task.sleep(for: .milliseconds(380))
+            // After silence, analyze almost immediately so the guess speaks back fast.
+            try? await Task.sleep(for: .milliseconds(afterSilence ? 120 : 280))
             guard !Task.isCancelled, isSessionActive else { return }
             scheduleTurnAnalysis()
         }
