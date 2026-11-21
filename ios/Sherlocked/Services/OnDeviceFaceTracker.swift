@@ -65,12 +65,23 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
         }
 
         let lum = Self.estimateLuminance(cgImage: cgImage)
-        var flags: [String] = []
-        if lum < 42.0 {
-            flags.append("low_light")
+        // Soft flags are reported for telemetry but must NOT starve live scoring.
+        // Glasses HEVC + wearer ego-motion commonly trip frame_loss / fast_head_turn.
+        var softFlags: [String] = []
+        var hardFlags: [String] = []
+        if lum < 28.0 {
+            hardFlags.append("low_light")
+        } else if lum < 42.0 {
+            softFlags.append("low_light")
         }
-        if let prevT, (sessionTimestampSec - prevT) > 0.45 {
-            flags.append("frame_loss")
+        if let prevT {
+            let gap = sessionTimestampSec - prevT
+            // Wearable streams often arrive in 0.5–1.2s bursts; only hard-fail huge gaps.
+            if gap > 2.0 {
+                hardFlags.append("frame_loss")
+            } else if gap > 1.0 {
+                softFlags.append("frame_loss")
+            }
         }
 
         let request = VNDetectFaceLandmarksRequest()
@@ -79,6 +90,7 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
         let observations = request.results ?? []
 
         if observations.isEmpty {
+            let flags = softFlags + hardFlags
             return FrameSampleDTO(
                 frame_id: frameID,
                 timestamp_sec: sessionTimestampSec,
@@ -92,7 +104,8 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
         }
 
         if observations.count > 1 {
-            flags.append("listener_in_frame")
+            // Glasses POV often sees more than one person; keep largest face usable.
+            softFlags.append("listener_in_frame")
         }
 
         let primary = observations.max(by: {
@@ -110,8 +123,11 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
         lastYawDeg = yawDeg
         lock.unlock()
 
-        if turnRate > 65.0 || abs(yawDeg) > 48.0 {
-            flags.append("fast_head_turn")
+        // POV camera motion from the wearer is not speaker head-turn evidence.
+        if turnRate > 140.0 || abs(yawDeg) > 70.0 {
+            hardFlags.append("fast_head_turn")
+        } else if turnRate > 90.0 || abs(yawDeg) > 55.0 {
+            softFlags.append("fast_head_turn")
         }
 
         let metrics = Self.computeLandmarkChannels(face: primary)
@@ -124,15 +140,17 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
             lock.unlock()
         }
 
-        let usable = flags.isEmpty
+        let flags = softFlags + hardFlags
+        let usable = hardFlags.isEmpty
         return FrameSampleDTO(
             frame_id: frameID,
             timestamp_sec: (sessionTimestampSec * 1000).rounded() / 1000,
             crop_phase: "sampled",
-            jpeg_base64: (currentIdx % 6 == 0) ? cropJPEG?.base64EncodedString() : nil,
+            // Keep analyze payloads light — crops stay in-memory for seek/replay UI.
+            jpeg_base64: nil,
             face_visible: true,
             usable: usable,
-            speaker_attributed: usable && observations.count == 1,
+            speaker_attributed: usable,
             faces_detected: observations.count,
             luminance: (lum * 100).rounded() / 100,
             head_yaw_deg: (yawDeg * 100).rounded() / 100,

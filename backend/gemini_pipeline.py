@@ -47,12 +47,17 @@ _ASR_INVITE_FIXES = [
     (re.compile(r"\btoo truths\b", re.IGNORECASE), "two truths"),
     (re.compile(r"\btwo truth\b", re.IGNORECASE), "two truths"),
     (re.compile(r"\btrue truths\b", re.IGNORECASE), "two truths"),
+    (re.compile(r"\btwo truce\b", re.IGNORECASE), "two truths"),
+    (re.compile(r"\btwo crews\b", re.IGNORECASE), "two truths"),
     (re.compile(r"\band alive\b", re.IGNORECASE), "and a lie"),
     (re.compile(r"\ban alive\b", re.IGNORECASE), "and a lie"),
     (re.compile(r"\band the lie\b", re.IGNORECASE), "and a lie"),
     (re.compile(r"\bin a lie\b", re.IGNORECASE), "and a lie"),
     (re.compile(r"\band rely\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\band a line\b", re.IGNORECASE), "and a lie"),
+    (re.compile(r"\band ally\b", re.IGNORECASE), "and a lie"),
     (re.compile(r"\btwo truths and lie\b", re.IGNORECASE), "two truths and a lie"),
+    (re.compile(r"\bto truths and a lie\b", re.IGNORECASE), "two truths and a lie"),
 ]
 PRACTICE_RULE_PATTERN = re.compile(
     r"\b(role-?play|rehears(?:e|al|ing)|practice (?:pitch|negotiation|session|round|run)|coach me|mock pitch|let'?s practice)\b",
@@ -272,12 +277,32 @@ class SherlockedPipeline:
                 discarded_flags.update(vres.discarded_flags)
                 return utterances, frames, vres.candidate_events, sorted(discarded_flags, key=lambda x: x.value), effective_fps
 
-            # Pre-extracted frames sent from iOS Vision/ARKit tracker
+            # Pre-extracted frames sent from iOS Vision tracker (glasses/iPhone live path).
+            # Soft wearable flags are telemetry-only — do not starve lie/deal scoring.
+            soft_live = {
+                QualityFailureFlag.FRAME_LOSS,
+                QualityFailureFlag.FAST_HEAD_TURN,
+                QualityFailureFlag.EYEWEAR_OCCLUSION,
+                QualityFailureFlag.LISTENER_IN_FRAME,
+                QualityFailureFlag.LOW_LIGHT,
+            }
+            hard_live = {
+                QualityFailureFlag.AUDIO_DRIFT,
+                QualityFailureFlag.OVERLAPPING_SPEECH,
+            }
             for f in frames:
                 if abs(req.audio_video_drift_ms) > 140.0 and QualityFailureFlag.AUDIO_DRIFT not in f.quality_flags:
                     f.quality_flags.append(QualityFailureFlag.AUDIO_DRIFT)
+                flags = set(f.quality_flags)
+                hard = flags.intersection(hard_live)
+                # Extreme low-light / no-face stay unusable; soft wearable flags do not.
+                extreme_dark = QualityFailureFlag.LOW_LIGHT in flags and float(f.luminance or 128.0) < 28.0
+                if hard or extreme_dark or not f.face_visible:
                     f.usable = False
                     f.speaker_attributed = False
+                elif f.face_visible and (not flags or flags.issubset(soft_live) or f.usable):
+                    f.usable = True
+                    f.speaker_attributed = True
                 discarded_flags.update(f.quality_flags)
 
             events, _ = self.tracker.propose_motion_intervals(frames, utterances)

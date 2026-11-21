@@ -21,10 +21,14 @@ actor BackendAPIClient {
     private var baseURLString: String
     private let session: URLSession
 
-    init(baseURLString: String? = nil, timeoutSeconds: TimeInterval = 35.0) {
+    init(baseURLString: String? = nil, timeoutSeconds: TimeInterval = 60.0) {
         let savedOverride: String? = {
             if let s = UserDefaults.standard.string(forKey: "sherlocked_backend_url")?.trimmingCharacters(in: .whitespacesAndNewlines),
                !s.isEmpty {
+                // Ignore stale loopback overrides once a public Render/backend URL is shipped in Info.plist.
+                if s.contains("127.0.0.1") || s.contains("localhost") {
+                    return nil
+                }
                 return s
             }
             return nil
@@ -33,7 +37,7 @@ actor BackendAPIClient {
         let defaultHost = "http://127.0.0.1:8787"
         let nonLoopbackInfoURL: String? = nil
         #else
-        let defaultHost = "http://127.0.0.1:8787"
+        let defaultHost = "https://sherlocked-backend.onrender.com"
         let infoURL = Bundle.main.object(forInfoDictionaryKey: "SHERLOCKED_BACKEND_URL") as? String
         let nonLoopbackInfoURL: String? = {
             if let infoURL, !infoURL.contains("127.0.0.1"), !infoURL.contains("localhost"), !infoURL.isEmpty {

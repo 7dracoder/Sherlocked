@@ -20,7 +20,7 @@ settings:
     META_APP_ID: "0"
     CLIENT_TOKEN: "0"
     ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-    SHERLOCKED_BACKEND_URL: "http://127.0.0.1:8787"
+    SHERLOCKED_BACKEND_URL: "https://sherlocked-backend.onrender.com"
 
 targets:
   Sherlocked:

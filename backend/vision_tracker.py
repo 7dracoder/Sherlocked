@@ -420,7 +420,8 @@ class FacialObservationTracker:
     ) -> tuple[list[CandidateMotionInterval], dict[str, str]]:
         """Condition-matched same-speaker baseline spotting without fixed calibration duration."""
         usable_samples = [s for s in samples if s.face_visible and s.usable and s.speaker_attributed]
-        if len(usable_samples) < 8:
+        # Live glasses streams are bursty — allow scoring with a thinner window.
+        if len(usable_samples) < 5:
             return [], {}
 
         tracked_channels = [

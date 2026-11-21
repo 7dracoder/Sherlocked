@@ -25,7 +25,7 @@ struct MockGlassesSheetView: View {
                     }
                     .accessibilityIdentifier("simulate_disconnect_button")
 
-                    Toggle("Glasses PCM mic (DAT) for front speaker", isOn: $coordinator.useSynchronizedGlassesAudio)
+                    Toggle("Experimental DAT PCM mic (prefer off — use HFP)", isOn: $coordinator.useSynchronizedGlassesAudio)
 
                     if coordinator.glassesCoordinator.isMockModeEnabled {
                         Button("Unpair Simulated Glasses", role: .destructive) {

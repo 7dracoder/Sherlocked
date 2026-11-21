@@ -120,9 +120,15 @@ final class SherlockedSessionTests: XCTestCase {
         XCTAssertFalse(s1.usable)
         XCTAssertTrue(s1.quality_flags.contains("low_light"))
 
+        // Soft frame_loss at ~1.2s gap — still unusable here because of hard low_light.
         let s2 = tracker.processFrame(image: darkImage, sessionTimestampSec: 1.2)
         XCTAssertFalse(s2.usable)
-        XCTAssertTrue(s2.quality_flags.contains("frame_loss"))
+        XCTAssertTrue(s2.quality_flags.contains("low_light"))
+
+        // Hard frame_loss only after a multi-second wearable drop.
+        let s3 = tracker.processFrame(image: darkImage, sessionTimestampSec: 3.5)
+        XCTAssertFalse(s3.usable)
+        XCTAssertTrue(s3.quality_flags.contains("frame_loss"))
     }
 
     func testLiveBackendReplayAndMaskedComparison() async throws {

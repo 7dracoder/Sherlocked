@@ -333,11 +333,13 @@ struct EvidenceResultSummaryView: View {
                     .background(Color.purple.opacity(0.22), in: Capsule())
             }
 
-            if !response.discarded_quality_flags.isEmpty {
+            // Soft wearable flags (frame_loss, fast_head_turn, …) are normal — never alarm on them.
+            // Only surface a hint when the server explicitly asked for a retry.
+            if response.retry_requested, let reason = response.retry_reason, !reason.isEmpty {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
-                    Text("Excluded capture flags: \(response.discarded_quality_flags.joined(separator: ", "))")
+                    Text(reason)
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }

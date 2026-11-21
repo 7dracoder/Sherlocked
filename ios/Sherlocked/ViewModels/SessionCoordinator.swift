@@ -38,8 +38,8 @@ final class SessionCoordinator: ObservableObject {
     @Published var availableFixtures: [ReplayFixtureItemDTO] = []
     @Published var selectedReplayFixture: ReplayFixtureItemDTO?
     @Published var activeReplayVideoURL: URL?
-    /// Prefer Meta glasses PCM (DAT) + HFP for listening to the person in front.
-    @Published var useSynchronizedGlassesAudio: Bool = true
+    /// DAT PCM is optional fallback only — Bluetooth HFP is the accurate listen + speak path.
+    @Published var useSynchronizedGlassesAudio: Bool = false
     @Published var configuredBackendURL: String = ""
 
     let glassesCoordinator: GlassesWearablesCoordinator
@@ -341,10 +341,9 @@ final class SessionCoordinator: ObservableObject {
 
         hasPlayedReadyCue = true
         statusLabel = "Listening for context"
-        let spokePrivately = audioEngine.speakCuePrivatelyIfPermitted("Sherlocked is listening")
-        if !spokePrivately && onScreenCueBanner == nil {
-            onScreenCueBanner = "Sherlocked is listening"
-        }
+        onScreenCueBanner = "Sherlocked is listening"
+        // Always attempt speak-back into glasses (falls back to speaker if needed).
+        _ = audioEngine.speakCuePrivatelyIfPermitted("Sherlocked is listening", forceSpeak: true)
     }
 
     /// Used by automated tests and Simulator harness to verify sensor-readiness gating & live speech pipeline.
@@ -409,8 +408,8 @@ final class SessionCoordinator: ObservableObject {
     private func scheduleSpeechUpdate() {
         speechDebounce?.cancel()
         speechDebounce = Task {
-            // Keep turns snappy for live glasses sessions while still coalescing partial ASR.
-            try? await Task.sleep(for: .milliseconds(280))
+            // Short pause so front-speaker ASR can settle — keep snappy for live cue.
+            try? await Task.sleep(for: .milliseconds(380))
             guard !Task.isCancelled, isSessionActive else { return }
             scheduleTurnAnalysis()
         }
@@ -426,7 +425,18 @@ final class SessionCoordinator: ObservableObject {
 
         turnSequence += 1
         let turnID = "turn_\(turnSequence)"
-        let framesSnapshot = Array(collectedFrames.suffix(72))
+        // Prefer speaker-attributed usable frames; strip bulky JPEG if any slipped in.
+        let framesSnapshot = Array(
+            collectedFrames
+                .suffix(96)
+                .filter { $0.face_visible }
+                .suffix(48)
+                .map { frame in
+                    var f = frame
+                    f.jpeg_base64 = nil
+                    return f
+                }
+        )
         let fpsSnapshot = effectiveFPS > 0 ? effectiveFPS : 24.0
         let routeSnapshot = audioEngine.currentRoute
         let sourceSnapshot = captureSource
@@ -493,8 +503,8 @@ final class SessionCoordinator: ObservableObject {
         }
         guard let cue, !cue.isEmpty, deliveredResultIDs.insert(key).inserted else { return }
         onScreenCueBanner = cue
-        _ = audioEngine.speakCuePrivatelyIfPermitted(cue)
-
+        // Always speak the locked guess / deal cue — do not silently drop when route detection flickers.
+        _ = audioEngine.speakCuePrivatelyIfPermitted(cue, forceSpeak: true)
     }
 
     // MARK: - Replay & Face-Masked Comparison

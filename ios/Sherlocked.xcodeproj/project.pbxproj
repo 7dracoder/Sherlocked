@@ -484,7 +484,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SHERLOCKED_BACKEND_URL = "http://127.0.0.1:8787";
+				SHERLOCKED_BACKEND_URL = "https://sherlocked-backend.onrender.com";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
@@ -571,7 +571,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SHERLOCKED_BACKEND_URL = "http://127.0.0.1:8787";
+				SHERLOCKED_BACKEND_URL = "https://sherlocked-backend.onrender.com";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 6.0;
