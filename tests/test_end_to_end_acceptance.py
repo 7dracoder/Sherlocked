@@ -391,3 +391,72 @@ def test_glasses_front_speaker_asr_mishear_still_locks_lie_guess(client: TestCli
     assert data["initial_guess"]["chosen_story_number"] == 2
     assert data["should_speak_privately"] is True
     assert "lie" in (data["spoken_cue_text"] or "").lower()
+
+
+def test_ordinary_conversation_ask_then_announce_lie(client: TestClient) -> None:
+    """Non-game talk: ask when unsure, announce when face evidence is strong."""
+    sid = "e2e_conversation_doubt"
+    client.post(f"/api/v1/session/{sid}/reset")
+
+    claim = {
+        "segment_id": "u1",
+        "text": "So yeah I kind of probably closed the whole round last week somehow",
+        "start_sec": 1.0,
+        "end_sec": 4.5,
+        "pause_before_sec": 0.9,
+        "speech_rate_wps": 2.8,
+    }
+    frames = [
+        FrameSample(
+            frame_id=f"frame_{i:05d}",
+            timestamp_sec=round(1.0 + i * 0.2, 2),
+            blendshapes={"lip_press": 0.48 if abs((1.0 + i * 0.2) - 2.4) < 0.15 else 0.03},
+            motion_score=0.28 if abs((1.0 + i * 0.2) - 2.4) < 0.15 else 0.02,
+        ).model_dump()
+        for i in range(20)
+    ]
+
+    r = client.post(
+        "/api/v1/session/analyze",
+        json={
+            "session_id": sid,
+            "turn_id": "turn_ask",
+            "audio_route": AudioRouteKind.GLASSES_PRIVATE.value,
+            "modality_mode": "audio_plus_visible_face",
+            "utterances": [claim],
+            "frames": frames,
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["activity"] == ActivityKind.UNCLEAR.value
+    assert data["initial_guess"] is None
+    assert data["deal_output"] is not None
+    assert data["deal_output"]["action"] in ("ask_followup", "announce_lie")
+    assert data["spoken_cue_text"]
+    assert data["should_speak_privately"] is True
+    assert "ask" in data["spoken_cue_text"].lower() or "lie" in data["spoken_cue_text"].lower()
+
+    hot_frames = [
+        FrameSample(
+            frame_id=f"hot_{i:05d}",
+            timestamp_sec=round(1.0 + i * 0.2, 2),
+            blendshapes={"lip_press": 0.72 if abs((1.0 + i * 0.2) - 2.4) < 0.2 else 0.03},
+            motion_score=0.4 if abs((1.0 + i * 0.2) - 2.4) < 0.2 else 0.02,
+        ).model_dump()
+        for i in range(20)
+    ]
+    r2 = client.post(
+        "/api/v1/session/analyze",
+        json={
+            "session_id": sid,
+            "turn_id": "turn_announce",
+            "audio_route": AudioRouteKind.GLASSES_PRIVATE.value,
+            "modality_mode": "audio_plus_visible_face",
+            "utterances": [claim],
+            "frames": hot_frames,
+        },
+    )
+    assert r2.status_code == 200
+    d2 = r2.json()
+    assert d2["deal_output"]["action"] in ("ask_followup", "announce_lie", "silence")

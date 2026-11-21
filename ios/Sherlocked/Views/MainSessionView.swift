@@ -413,9 +413,7 @@ struct EvidenceResultSummaryView: View {
             case .practice:
                 practiceSection
             case .unclear:
-                Text("Ordinary or incomplete conversation — Sherlocked stays silent until an activity is established.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                conversationSection
             }
         }
         .padding(14)
@@ -531,30 +529,69 @@ struct EvidenceResultSummaryView: View {
         }
     }
 
+    private var conversationSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let deal = response.deal_output {
+                conversationCueBlock(deal)
+            } else {
+                Text("Listening to ordinary conversation — I'll ask when unsure, and tell you when I'm sure a claim is a lie.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
     private var dealSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             if let deal = response.deal_output {
-                if deal.action == "whisper_question", let whisper = deal.spoken_whisper {
-                    Label("Actionable Follow-Up", systemImage: "ear.and.waveform")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundStyle(.mint)
-                    Text("\"\(whisper)\"")
-                        .font(.body.weight(.semibold))
-                    if let obs = deal.observable_evidence {
-                        Text(obs)
-                            .font(.caption)
-                            .foregroundStyle(.cyan)
-                    }
-                    citedFramesRow(deal.cited_frame_ids)
-                } else {
-                    Label("Staying Silent", systemImage: "speaker.slash")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Text(deal.silence_reason ?? "No usable facial observation coincided with a specific commitment.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                conversationCueBlock(deal)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func conversationCueBlock(_ deal: DealCueOutputDTO) -> some View {
+        switch deal.action {
+        case "announce_lie":
+            Label("Likely a lie", systemImage: "exclamationmark.bubble.fill")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.orange)
+            if let whisper = deal.spoken_whisper {
+                Text("\"\(whisper)\"")
+                    .font(.body.weight(.semibold))
+            }
+            Text(String(format: "Confidence %.0f%%", deal.confidence * 100))
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+            if let obs = deal.observable_evidence {
+                Text(obs).font(.caption).foregroundStyle(.cyan)
+            }
+            citedFramesRow(deal.cited_frame_ids)
+        case "ask_followup", "whisper_question":
+            Label(
+                deal.action == "ask_followup" ? "Ask another question" : "Actionable Follow-Up",
+                systemImage: "ear.and.waveform"
+            )
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(.mint)
+            if let whisper = deal.spoken_whisper {
+                Text("\"\(whisper)\"")
+                    .font(.body.weight(.semibold))
+            }
+            Text(String(format: "Confidence %.0f%%", deal.confidence * 100))
+                .font(.caption2.monospaced())
+                .foregroundStyle(.secondary)
+            if let obs = deal.observable_evidence {
+                Text(obs).font(.caption).foregroundStyle(.cyan)
+            }
+            citedFramesRow(deal.cited_frame_ids)
+        default:
+            Label("Monitoring quietly", systemImage: "speaker.slash")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(deal.silence_reason ?? "No clear doubt signal yet.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 

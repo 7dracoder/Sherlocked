@@ -579,9 +579,23 @@ final class SessionCoordinator: ObservableObject {
                 }
                 key = "\(sessionID)/\(response.activity_epoch)/initial"
             }
-        } else if let deal = response.deal_output, deal.action == "whisper_question", let whisper = deal.spoken_whisper {
-            banner = "Deal cue: \(whisper)"
+        } else if let deal = response.deal_output, let whisper = deal.spoken_whisper,
+                  ["whisper_question", "ask_followup", "announce_lie"].contains(deal.action) {
+            switch deal.action {
+            case "announce_lie":
+                banner = "Call: \(whisper)"
+            case "ask_followup":
+                banner = "Ask more: \(whisper)"
+            default:
+                banner = "Cue: \(whisper)"
+            }
             cue = cue ?? whisper
+            key = "\(sessionID)/\(response.activity_epoch)/\(deal.action)/\(deal.identified_term ?? whisper.prefix(24).description)"
+        } else if let practice = response.practice_output, practice.exercise_complete,
+                  let tip = practice.suggested_followup, !tip.isEmpty {
+            banner = "Practice: \(tip)"
+            cue = cue ?? tip
+            key = "\(sessionID)/\(response.activity_epoch)/practice"
         }
 
         if let banner, !banner.isEmpty {

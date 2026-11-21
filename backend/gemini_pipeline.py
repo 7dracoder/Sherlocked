@@ -711,8 +711,9 @@ class SherlockedPipeline:
                     3: [player_utts[2]],
                 }
 
-        # Fallback C: one mega-transcript (common with live Apple/ElevenLabs) — carve into 3 stories.
-        if len(buckets) < 3:
+        # Fallback C: only when ordinal structure is missing (≤1 bucket).
+        # Never invent story 3 from a clear {1,2}-only round — wait for more speech.
+        if len(buckets) <= 1:
             carved = _carve_three_stories_from_utterances(player_utts, existing=buckets)
             if len(carved) >= 3:
                 buckets = carved
@@ -1007,15 +1008,27 @@ class SherlockedPipeline:
 
         term, ev, _ = matched_pair
         conf = min(0.96, 0.58 + 1.45 * ev.peak_delta + 0.12 * max((u.pause_before_sec for u in utterances), default=0.0))
-        if conf < self.weights.deal_cue_confidence_threshold:
+        term_clean = term.strip(".,!?;:")
+        cited = []
+        for fid in (ev.before_frame_id, ev.during_frame_id, ev.after_frame_id):
+            if fid in usable_frame_ids and fid not in cited:
+                cited.append(fid)
+        obs = sanitize_observable_text(
+            ev.observable_action,
+            self.weights.allow_micro_expression_claim,
+        )
+
+        if conf < self.weights.conversation_ask_threshold:
             return DealCueOutput(
                 action="silence",
-                identified_term=term,
+                identified_term=term_clean,
                 confidence=round(conf, 4),
-                silence_reason=f"Calibrated confidence ({conf:.2f}) below Deal threshold ({self.weights.deal_cue_confidence_threshold:.2f}).",
+                silence_reason=(
+                    f"Calibrated confidence ({conf:.2f}) below ask threshold "
+                    f"({self.weights.conversation_ask_threshold:.2f})."
+                ),
             )
 
-        term_clean = term.strip(".,!?;:")
         if term_clean.lower() in ("friday", "monday", "tuesday", "wednesday", "thursday", "next week"):
             whisper = f"Ask what could delay {term_clean.capitalize() if term_clean.lower() != 'next week' else term_clean}."
         elif "$" in term_clean or "budget" in term_clean.lower() or "pricing" in term_clean.lower():
@@ -1023,21 +1036,168 @@ class SherlockedPipeline:
         else:
             whisper = f"Ask what condition affects {term_clean}."
 
-        cited = []
-        for fid in (ev.before_frame_id, ev.during_frame_id, ev.after_frame_id):
-            if fid in usable_frame_ids and fid not in cited:
-                cited.append(fid)
-
+        # Deal stays in the "ask the wearer a question" family (never a hard lie call).
+        # Mid doubt → ask_followup; classic threshold → whisper_question.
+        action = (
+            "whisper_question"
+            if conf >= self.weights.deal_cue_confidence_threshold
+            else "ask_followup"
+        )
         return DealCueOutput(
-            action="whisper_question",
+            action=action,
             identified_term=term_clean,
             spoken_whisper=whisper,
             confidence=round(conf, 4),
             cited_frame_ids=cited,
-            observable_evidence=sanitize_observable_text(
-                ev.observable_action,
-                self.weights.allow_micro_expression_claim,
+            observable_evidence=obs,
+        )
+
+    def _evaluate_conversation_turn(
+        self,
+        utterances: Sequence[UtteranceSegment],
+        events: Sequence[CandidateMotionInterval],
+        frames: Sequence[FrameSample],
+        modality_mode: ModalityMode,
+        session: SessionRecord,
+    ) -> DealCueOutput:
+        """
+        Ordinary conversation monitor (non-game):
+        - mid doubt → privately ask a follow-up question
+        - high doubt → privately announce the claim looks false
+        Stays silent without usable face/prosody evidence (keeps honest chatter quiet).
+        """
+        if modality_mode != ModalityMode.AUDIO_PLUS_VISIBLE_FACE:
+            return DealCueOutput(
+                action="silence",
+                silence_reason="Conversation cues need visible-face evidence.",
+            )
+        if _find_game_rule(" ".join(u.text for u in utterances)):
+            return DealCueOutput(
+                action="silence",
+                silence_reason="Game invite present — conversation monitor yields to Two Truths.",
+            )
+
+        usable_frame_ids = {f.frame_id for f in frames if f.face_visible and f.usable and f.speaker_attributed}
+        usable_events = [
+            e for e in events if e.usable and e.speaker_attributed and e.apex_frame_id in usable_frame_ids
+        ]
+        claims = [
+            u
+            for u in utterances
+            if len(u.text.split()) >= 5
+            and not PRACTICE_RULE_PATTERN.search(u.text)
+            and not PRACTICE_END_PATTERN.search(u.text)
+        ]
+        if not claims:
+            return DealCueOutput(
+                action="silence",
+                silence_reason="No substantive claim yet.",
+            )
+
+        best: tuple[UtteranceSegment, CandidateMotionInterval | None, float, str] | None = None
+        for u in claims[-4:]:
+            hedge = 1 if HEDGING_WORDS.search(u.text) else 0
+            concrete = 1 if CONCRETE_ANCHOR_WORDS.search(u.text) else 0
+            pause = min(1.2, max(0.0, u.pause_before_sec))
+            rate = u.speech_rate_wps or 0.0
+            rate_odd = 1 if rate and (rate < 1.6 or rate > 4.6) else 0
+
+            paired_ev: CandidateMotionInterval | None = None
+            face_boost = 0.0
+            if usable_events:
+                for ev in usable_events:
+                    # Facial shift overlapping the claim window.
+                    if (u.start_sec - 0.55) <= ev.apex_sec <= (u.end_sec + 0.55):
+                        # Conservative: needs real face motion; hedges/pauses nudge ask vs announce.
+                        score = (
+                            0.36
+                            + 1.05 * ev.peak_delta
+                            + 0.08 * pause
+                            + 0.07 * hedge
+                            + 0.04 * rate_odd
+                            - 0.05 * concrete
+                        )
+                        if paired_ev is None or score > face_boost:
+                            paired_ev = ev
+                            face_boost = score
+
+            # Face evidence is required for any spoken cue (keeps plain chatter silent).
+            if paired_ev is None:
+                continue
+            conf = max(0.0, min(0.96, face_boost))
+            snippet = " ".join(u.text.split()[:8])
+            if best is None or conf > best[2]:
+                best = (u, paired_ev, conf, snippet)
+
+        if best is None:
+            return DealCueOutput(
+                action="silence",
+                silence_reason="No clear doubt signal on this claim.",
+            )
+
+        claim_u, ev, conf, snippet = best
+        cue_key = f"{claim_u.start_sec:.1f}:{snippet.lower()}"
+
+        cited: list[str] = []
+        obs: str | None = None
+        assert ev is not None
+        for fid in (ev.before_frame_id, ev.during_frame_id, ev.after_frame_id):
+            if fid in usable_frame_ids and fid not in cited:
+                cited.append(fid)
+        obs = sanitize_observable_text(
+            ev.observable_action,
+            self.weights.allow_micro_expression_claim,
+        )
+
+        ask_t = self.weights.conversation_ask_threshold
+        ann_t = self.weights.conversation_announce_threshold
+
+        if conf < ask_t:
+            return DealCueOutput(
+                action="silence",
+                confidence=round(conf, 4),
+                silence_reason="No clear doubt signal on this claim.",
+            )
+
+        # Escalate only: same claim can go ask → announce, but never re-whisper the same action.
+        if (
+            session.last_conversation_cue_key == cue_key
+            and session.last_conversation_cue_action == ("announce_lie" if conf >= ann_t else "ask_followup")
+        ):
+            return DealCueOutput(
+                action="silence",
+                identified_term=snippet,
+                confidence=round(conf, 4),
+                silence_reason="Already delivered this conversation cue.",
+                cited_frame_ids=cited,
+                observable_evidence=obs,
+            )
+
+        if conf >= ann_t:
+            session.last_conversation_cue_key = cue_key
+            session.last_conversation_cue_action = "announce_lie"
+            return DealCueOutput(
+                action="announce_lie",
+                identified_term=snippet,
+                spoken_whisper=(
+                    f"I'm sure enough now — that claim starting '{snippet}' looks like a lie."
+                ),
+                confidence=round(conf, 4),
+                cited_frame_ids=cited,
+                observable_evidence=obs,
+            )
+
+        session.last_conversation_cue_key = cue_key
+        session.last_conversation_cue_action = "ask_followup"
+        return DealCueOutput(
+            action="ask_followup",
+            identified_term=snippet,
+            spoken_whisper=(
+                f"Ask one more question about '{snippet}' — I'm not sure yet if that is true."
             ),
+            confidence=round(conf, 4),
+            cited_frame_ids=cited,
+            observable_evidence=obs,
         )
 
     def _evaluate_practice_turn(
@@ -1493,7 +1653,8 @@ class SherlockedPipeline:
                 frames=frames,
                 modality_mode=req.modality_mode,
             )
-            if self.settings.has_live_gemini:
+            # Live Gemini enhance only for evaluation/replay (keep live wearables fast).
+            if self.settings.has_live_gemini and (req.is_evaluation or req.is_replay):
                 try:
                     _, deal_output, _, live_meta = self._enhance_with_live_gemini(
                         activity=activity,
@@ -1510,9 +1671,18 @@ class SherlockedPipeline:
                     execution_mode = "local_multimodal_engine"
                     live_meta = {"gemini_fallback_error": str(exc)}
             assert deal_output is not None
-            if deal_output.action == "whisper_question" and deal_output.spoken_whisper:
+            if deal_output.spoken_whisper and deal_output.action in (
+                "whisper_question",
+                "ask_followup",
+                "announce_lie",
+            ):
                 spoken_cue = deal_output.spoken_whisper
-                status_label = "Deal discussion · Follow-up cue ready"
+                if deal_output.action == "announce_lie":
+                    status_label = "Deal · Likely false claim"
+                elif deal_output.action == "ask_followup":
+                    status_label = "Deal · Ask another question"
+                else:
+                    status_label = "Deal discussion · Follow-up cue ready"
             else:
                 status_label = "Deal discussion · Monitoring quietly"
 
@@ -1523,7 +1693,9 @@ class SherlockedPipeline:
                 frames=frames,
                 is_replay=req.is_replay,
             )
-            if self.settings.has_live_gemini and practice_output.exercise_complete:
+            if self.settings.has_live_gemini and practice_output.exercise_complete and (
+                req.is_evaluation or req.is_replay
+            ):
                 try:
                     _, _, practice_output, live_meta = self._enhance_with_live_gemini(
                         activity=activity,
@@ -1540,14 +1712,34 @@ class SherlockedPipeline:
                     execution_mode = "local_multimodal_engine"
                     live_meta = {"gemini_fallback_error": str(exc)}
             assert practice_output is not None
-            status_label = (
-                "Practice · Replay & coaching ready"
-                if practice_output.exercise_complete
-                else "Practice · Recording rehearsal quietly"
-            )
+            if practice_output.exercise_complete and practice_output.suggested_followup:
+                spoken_cue = practice_output.suggested_followup
+                status_label = "Practice · Replay & coaching ready"
+            else:
+                status_label = (
+                    "Practice · Replay & coaching ready"
+                    if practice_output.exercise_complete
+                    else "Practice · Recording rehearsal quietly"
+                )
 
         else:
-            status_label = "Listening for context"
+            # Ordinary conversation: ask when unsure, announce when sure.
+            deal_output = self._evaluate_conversation_turn(
+                utterances=active_utts,
+                events=events,
+                frames=frames,
+                modality_mode=req.modality_mode,
+                session=session,
+            )
+            if deal_output.spoken_whisper and deal_output.action in ("ask_followup", "announce_lie"):
+                spoken_cue = deal_output.spoken_whisper
+                status_label = (
+                    "Conversation · Likely a lie"
+                    if deal_output.action == "announce_lie"
+                    else "Conversation · Ask a follow-up"
+                )
+            else:
+                status_label = "Listening for context"
 
         # Audio vs. Visual cue routing rules:
         # 1. Replay and evaluation calls are silent by default.
