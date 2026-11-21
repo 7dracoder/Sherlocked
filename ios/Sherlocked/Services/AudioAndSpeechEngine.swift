@@ -64,8 +64,23 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     private var pcmScratch = Data()
     private var pcmChunkStartRel: Double = 0
     private var pcmHasSpeechEnergy = false
-    private var elevenFlushTask: Task<Void, Never>?
+    private var elevenFlushLoopTask: Task<Void, Never>?
+    private var elevenTranscribeTask: Task<Void, Never>?
     private var committedUtteranceCount = 0
+    private var datPCMFlowing = false
+    /// Soft gain applied before ElevenLabs (HFP/glasses are quiet & narrowband).
+    private var elevenLabsGain: Float = 1.6
+    /// Audio-tap thread reads these without hopping to MainActor.
+    private let tapFlags = TapFlags()
+
+    private final class TapFlags: @unchecked Sendable {
+        private let lock = NSLock()
+        private var _skipHFP = false
+        var skipHFPTap: Bool {
+            get { lock.lock(); defer { lock.unlock() }; return _skipHFP }
+            set { lock.lock(); _skipHFP = newValue; lock.unlock() }
+        }
+    }
 
     override init() {
         super.init()
@@ -139,35 +154,56 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     }
 
     private func enqueuePCM16ForElevenLabs(_ pcm: Data) {
+        let boosted = Self.amplifyPCM16(pcm, gain: elevenLabsGain)
         let rel = max(0, CACurrentMediaTime() - sessionStartClock)
+        // Glasses/HFP is quieter — accept a lower peak so chunks actually flush.
+        let peakThreshold: Int16 = usingGlassesMic ? 500 : 900
+        // Longer chunks for glasses (better Scribe accuracy on narrowband).
+        let flushBytes = usingGlassesMic ? 64_000 : 44_800 // ~2.0s / ~1.4s @16k
         var shouldFlush = false
         pcmLock.lock()
         if pcmScratch.isEmpty {
             pcmChunkStartRel = rel
         }
-        // Rough energy gate: any sample beyond quiet room noise.
         if !pcmHasSpeechEnergy {
-            pcm.withUnsafeBytes { raw in
+            boosted.withUnsafeBytes { raw in
                 guard let samples = raw.bindMemory(to: Int16.self).baseAddress else { return }
-                let n = pcm.count / 2
+                let n = boosted.count / 2
                 var peak: Int16 = 0
                 for i in stride(from: 0, to: n, by: 8) {
                     let v = samples[i]
                     let a = v == Int16.min ? Int16.max : abs(v)
                     if a > peak { peak = a }
                 }
-                if peak > 1200 { pcmHasSpeechEnergy = true }
+                if peak > peakThreshold { pcmHasSpeechEnergy = true }
             }
         }
-        pcmScratch.append(pcm)
-        // ~1.4s of 16kHz mono PCM16 = 44800 bytes
-        if pcmScratch.count >= 44_800 {
+        pcmScratch.append(boosted)
+        if pcmScratch.count >= flushBytes {
             shouldFlush = true
         }
         pcmLock.unlock()
         if shouldFlush {
             flushElevenLabsChunk()
         }
+    }
+
+    nonisolated private static func amplifyPCM16(_ pcm: Data, gain: Float) -> Data {
+        guard gain > 1.01, !pcm.isEmpty else { return pcm }
+        var out = Data(count: pcm.count)
+        out.withUnsafeMutableBytes { dstRaw in
+            pcm.withUnsafeBytes { srcRaw in
+                guard let src = srcRaw.bindMemory(to: Int16.self).baseAddress,
+                      let dst = dstRaw.bindMemory(to: Int16.self).baseAddress else { return }
+                let n = pcm.count / 2
+                for i in 0..<n {
+                    let v = Float(src[i]) * gain
+                    let clipped = max(-32768.0, min(32767.0, v))
+                    dst[i] = Int16(clipped)
+                }
+            }
+        }
+        return out
     }
 
     private func flushElevenLabsChunk() {
@@ -179,10 +215,16 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         pcmHasSpeechEnergy = false
         pcmLock.unlock()
         guard hadSpeech, chunk.count >= 8_000 else { return } // >=0.25s
+        // Don't cancel the flush *loop* — only replace the in-flight HTTP job.
+        if elevenTranscribeTask != nil { return }
         let wav = ElevenLabsASRClient.wavDataFromPCM16(chunk)
         let startIndex = max(1, utterances.count + 1)
-        elevenFlushTask?.cancel()
-        elevenFlushTask = Task { [weak self] in
+        elevenTranscribeTask = Task { [weak self] in
+            defer {
+                Task { @MainActor [weak self] in
+                    self?.elevenTranscribeTask = nil
+                }
+            }
             guard let self else { return }
             do {
                 let result = try await self.elevenASR.transcribeWAV(
@@ -325,54 +367,37 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         // Default: iPhone mic (front person holds the phone). Glasses mic is opt-in.
         applyMicPreferenceLocked(hasPairedGlasses: hasPairedGlasses)
         elevenASR.configure(backendBaseURL: backendBaseURL)
-
-        // CRITICAL: do NOT enable allowBluetoothHFP while capturing on phone mic —
-        // HFP steals the input route to the glasses and kills front-speaker ASR.
-        // HFP is enabled only during private speak-back.
-        if usingGlassesMic {
-            try audioSession.setCategory(
-                .playAndRecord,
-                mode: .videoRecording,
-                options: [.allowBluetoothHFP, .mixWithOthers]
-            )
-        } else {
-            try audioSession.setCategory(
-                .playAndRecord,
-                mode: .measurement,
-                options: [.defaultToSpeaker, .mixWithOthers]
-            )
-        }
-        try? audioSession.setPreferredSampleRate(44_100)
-        try? audioSession.setPreferredIOBufferDuration(0.02)
-        try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
-        applyPreferredMicInput(session: audioSession)
-        refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
-        publishMicStatus()
+        datPCMFlowing = false
+        elevenLabsGain = usingGlassesMic ? 2.4 : 1.8
+        try configureCaptureSession(hasPairedGlasses: hasPairedGlasses)
 
         let freshEngine = AVAudioEngine()
         self.audioEngine = freshEngine
         let inputNode = freshEngine.inputNode
-        // Use the node's native format for Apple Speech — resampling breaks recognition.
-        let hwFormat = inputNode.inputFormat(forBus: 0)
-        guard hwFormat.sampleRate > 0 && hwFormat.channelCount > 0 else {
-            throw NSError(domain: "SherlockedAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available. Check Mic permission and that nothing else is using the mic."])
+        // Prefer native node format; if route just switched, inputFormat can briefly be 0 —
+        // installTap(format: nil) still works and we adapt from the first buffer.
+        var hwFormat = inputNode.inputFormat(forBus: 0)
+        if hwFormat.sampleRate < 1 || hwFormat.channelCount < 1 {
+            // One more activate+prefer cycle, then fall back to a sane stereo/mono float format.
+            try? configureCaptureSession(hasPairedGlasses: hasPairedGlasses)
+            hwFormat = inputNode.inputFormat(forBus: 0)
+        }
+        if hwFormat.sampleRate < 1 || hwFormat.channelCount < 1 {
+            hwFormat = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)
+                ?? AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 48_000, channels: 1, interleaved: false)!
         }
         guard speechRecognizer?.isAvailable == true else {
             throw NSError(domain: "SherlockedSpeech", code: 1, userInfo: [NSLocalizedDescriptionKey: "English speech recognition is unavailable."])
         }
 
-        // Separate 16 kHz mono path only for ElevenLabs chunks.
         let elevenFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
             ?? hwFormat
         targetASRFormat = elevenFormat
-        if hwFormat.sampleRate != elevenFormat.sampleRate || hwFormat.channelCount != elevenFormat.channelCount {
-            converter = AVAudioConverter(from: hwFormat, to: elevenFormat)
-        } else {
-            converter = nil
-        }
+        converter = nil // built lazily from the first live buffer (handles route flips)
 
-        asrProviderLabel = "Apple + ElevenLabs"
+        asrProviderLabel = usingGlassesMic ? "Glasses · Apple + ElevenLabs" : "Phone · Apple + ElevenLabs"
         committedUtteranceCount = 0
+        isMicrophoneFlowing = false
         pcmLock.lock()
         pcmScratch.removeAll(keepingCapacity: true)
         pcmHasSpeechEnergy = false
@@ -380,18 +405,20 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
 
         beginRecognition()
 
-        let converter = self.converter
         let speechInput = self.speechInput
+        tapFlags.skipHFPTap = false
+        // Always nil format so the tap tracks live hardware after Bluetooth route flips.
         Self.installDualASRAudioTap(
             on: inputNode,
-            format: hwFormat,
+            preferredFormat: nil,
             elevenFormat: elevenFormat,
-            converter: converter,
-            input: speechInput
+            converterBox: ConverterBox(),
+            input: speechInput,
+            tapFlags: tapFlags
         ) { [weak self] pcm16, level in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.micLevel = level
+                self.micLevel = max(self.micLevel * 0.6, level)
                 if !self.isMicrophoneFlowing {
                     self.isMicrophoneFlowing = true
                     self.onFirstAudioDelivered?()
@@ -404,12 +431,13 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         tapInstalled = true
         freshEngine.prepare()
         try freshEngine.start()
+        applyPreferredMicInput(session: AVAudioSession.sharedInstance())
         publishMicStatus()
 
-        elevenFlushTask?.cancel()
-        elevenFlushTask = Task { [weak self] in
+        elevenFlushLoopTask?.cancel()
+        elevenFlushLoopTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(1400))
+                try? await Task.sleep(for: .milliseconds(1200))
                 guard !Task.isCancelled else { return }
                 await MainActor.run {
                     self?.reassertPreferredMicIfNeeded()
@@ -420,39 +448,68 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         #endif
     }
 
+    private func configureCaptureSession(hasPairedGlasses: Bool) throws {
+        let audioSession = AVAudioSession.sharedInstance()
+        // Phone mic: NEVER enable HFP — it steals input to glasses and kills front-speaker ASR.
+        // allowBluetoothA2DP keeps glasses/buds as output-only when needed.
+        if usingGlassesMic {
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .voiceChat,
+                options: [.allowBluetoothHFP, .mixWithOthers]
+            )
+        } else {
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .default,
+                options: [.defaultToSpeaker, .allowBluetoothA2DP, .mixWithOthers]
+            )
+        }
+        try? audioSession.setPreferredSampleRate(48_000)
+        try? audioSession.setPreferredIOBufferDuration(0.02)
+        try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
+        applyPreferredMicInput(session: audioSession)
+        if !usingGlassesMic {
+            try? audioSession.overrideOutputAudioPort(.speaker)
+        }
+        refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
+        publishMicStatus()
+    }
+
+    /// Mutable converter holder so the audio tap can create it from the first real buffer.
+    private final class ConverterBox: @unchecked Sendable {
+        let lock = NSLock()
+        var converter: AVAudioConverter?
+        var sourceRate: Double = 0
+    }
+
     /// Call after glasses camera starts — Meta session can steal the audio route.
     func reassertPreferredMicIfNeeded() {
         let session = AVAudioSession.sharedInstance()
-        applyPreferredMicInput(session: session)
-        publishMicStatus()
+        let inputType = session.currentRoute.inputs.first?.portType
+        let stuckOnHFP = !usingGlassesMic && (inputType == .bluetoothHFP)
+        if stuckOnHFP {
+            // Meta/DAT stole the route — full category reset without HFP.
+            try? configureCaptureSession(hasPairedGlasses: pairedGlassesHint)
+        } else {
+            applyPreferredMicInput(session: session)
+            if !usingGlassesMic {
+                try? session.overrideOutputAudioPort(.speaker)
+            }
+            publishMicStatus()
+        }
     }
 
     /// Live toggle: switch phone ↔ glasses mic and update the status line immediately.
     func applyMicPreference(preferPhoneMic: Bool, hasPairedGlasses: Bool) {
         MicCapturePreference.preferPhoneMic = preferPhoneMic
         applyMicPreferenceLocked(hasPairedGlasses: hasPairedGlasses)
-        let session = AVAudioSession.sharedInstance()
+        elevenLabsGain = usingGlassesMic ? 2.4 : 1.8
         do {
-            if usingGlassesMic {
-                try session.setCategory(
-                    .playAndRecord,
-                    mode: .videoRecording,
-                    options: [.allowBluetoothHFP, .mixWithOthers]
-                )
-            } else {
-                try session.setCategory(
-                    .playAndRecord,
-                    mode: .measurement,
-                    options: [.defaultToSpeaker, .mixWithOthers]
-                )
-            }
-            try session.setActive(true, options: [.notifyOthersOnDeactivation])
+            try configureCaptureSession(hasPairedGlasses: hasPairedGlasses)
         } catch {
             print("[Sherlocked] mic preference apply failed: \(error.localizedDescription)")
         }
-        applyPreferredMicInput(session: session)
-        refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
-        publishMicStatus()
     }
 
     private func applyMicPreferenceLocked(hasPairedGlasses: Bool) {
@@ -487,7 +544,12 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     private func publishMicStatus() {
         let intended = usingGlassesMic ? "Glasses mic" : "iPhone mic"
         micSourceLabel = intended
-        let actual = inputName.isEmpty ? "unknown" : inputName
+        let actual: String
+        if usingGlassesMic && datPCMFlowing {
+            actual = "DAT 16k"
+        } else {
+            actual = inputName.isEmpty ? "unknown" : inputName
+        }
         let flowing = isMicrophoneFlowing ? "live" : "waiting"
         micStatusLine = "Mic: \(intended) → \(actual) · \(flowing) · lvl \(String(format: "%.0f", micLevel * 100))%"
     }
@@ -499,9 +561,9 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
-        // Prefer on-device first for reliability; cloud can fail silently on bad networks.
+        // Cloud ASR is much better for front-speaker + glasses HFP; on-device struggles with both.
         if #available(iOS 16.0, *) {
-            request.requiresOnDeviceRecognition = true
+            request.requiresOnDeviceRecognition = false
         }
         request.taskHint = .dictation
         request.contextualStrings = [
@@ -579,14 +641,18 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
 
     nonisolated private static func installDualASRAudioTap(
         on inputNode: AVAudioInputNode,
-        format: AVAudioFormat,
+        preferredFormat: AVAudioFormat?,
         elevenFormat: AVAudioFormat,
-        converter: AVAudioConverter?,
+        converterBox: ConverterBox,
         input: SpeechInput,
+        tapFlags: TapFlags,
         onPCM16: @escaping @Sendable (Data, Double) -> Void
     ) {
-        inputNode.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
+        // nil format = node's native format (survives route changes better than a stale hwFormat).
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: preferredFormat) { buffer, _ in
             guard buffer.frameLength > 0 else { return }
+            if tapFlags.skipHFPTap { return }
+
             // Apple Speech MUST get the native hardware buffers (no resample).
             input.append(buffer)
 
@@ -598,13 +664,21 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
                 for i in stride(from: 0, to: frames, by: step) {
                     sum += abs(Double(channels[0][i]))
                 }
-                level = min(1.0, (sum / Double(max(1, frames / step))) * 4.0)
+                level = min(1.0, (sum / Double(max(1, frames / step))) * 5.0)
             }
 
-            // ElevenLabs path: optional resample to 16 kHz mono PCM16.
+            let srcFormat = buffer.format
             let elevenBuf: AVAudioPCMBuffer
-            if let converter {
-                let ratio = elevenFormat.sampleRate / format.sampleRate
+            if srcFormat.sampleRate != elevenFormat.sampleRate || srcFormat.channelCount != elevenFormat.channelCount {
+                converterBox.lock.lock()
+                if converterBox.converter == nil || abs(converterBox.sourceRate - srcFormat.sampleRate) > 0.5 {
+                    converterBox.converter = AVAudioConverter(from: srcFormat, to: elevenFormat)
+                    converterBox.sourceRate = srcFormat.sampleRate
+                }
+                let converter = converterBox.converter
+                converterBox.lock.unlock()
+                guard let converter else { return }
+                let ratio = elevenFormat.sampleRate / max(1.0, srcFormat.sampleRate)
                 let outFrames = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
                 guard let out = AVAudioPCMBuffer(pcmFormat: elevenFormat, frameCapacity: outFrames) else { return }
                 var error: NSError?
@@ -664,11 +738,14 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         return buf
     }
 
-    /// Optional DAT PCM path. Only used as a fallback if HFP has not started flowing yet.
+    /// DAT glasses mic (16 kHz PCM) — much better than HFP for front-speaker ASR.
     func consumeExternalGlassesPCM(_ buffer: AVAudioPCMBuffer) {
-        guard recognitionRequest != nil else { return }
-        // Prefer the primary mic tap once it is delivering samples.
-        if isMicrophoneFlowing { return }
+        guard usingGlassesMic, recognitionRequest != nil else { return }
+        datPCMFlowing = true
+        tapFlags.skipHFPTap = true // stop double-feeding lossy HFP once DAT is alive
+
+        // Feed native DAT buffers to Apple Speech (already float PCM).
+        speechInput.append(buffer)
         let floatBuf: AVAudioPCMBuffer
         if let asrFormat = targetASRFormat,
            (buffer.format.sampleRate != asrFormat.sampleRate || buffer.format.channelCount != asrFormat.channelCount),
@@ -677,13 +754,24 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         } else {
             floatBuf = buffer
         }
-        speechInput.append(floatBuf)
         if let pcm = Self.floatBufferToPCM16Data(floatBuf) {
             enqueuePCM16ForElevenLabs(pcm)
         }
+        var level = 0.05
+        if let channels = buffer.floatChannelData {
+            let frames = Int(buffer.frameLength)
+            var sum = 0.0
+            let step = max(1, frames / 32)
+            for i in stride(from: 0, to: frames, by: step) {
+                sum += abs(Double(channels[0][i]))
+            }
+            level = min(1.0, (sum / Double(max(1, frames / step))) * 5.0)
+        }
+        micLevel = max(micLevel * 0.5, level)
         if !isMicrophoneFlowing {
             isMicrophoneFlowing = true
             onFirstAudioDelivered?()
+            publishMicStatus()
         }
     }
 
@@ -921,10 +1009,14 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         }
         generation = UUID()
         retryTask?.cancel()
-        elevenFlushTask?.cancel()
-        elevenFlushTask = nil
+        elevenFlushLoopTask?.cancel()
+        elevenFlushLoopTask = nil
+        elevenTranscribeTask?.cancel()
+        elevenTranscribeTask = nil
         flushElevenLabsChunk()
         speechInput.replace(nil)
+        datPCMFlowing = false
+        tapFlags.skipHFPTap = false
         if tapInstalled {
             audioEngine.inputNode.removeTap(onBus: 0)
             tapInstalled = false

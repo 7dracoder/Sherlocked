@@ -39,8 +39,8 @@ final class SessionCoordinator: ObservableObject {
     @Published var availableFixtures: [ReplayFixtureItemDTO] = []
     @Published var selectedReplayFixture: ReplayFixtureItemDTO?
     @Published var activeReplayVideoURL: URL?
-    /// DAT PCM is optional fallback only — Bluetooth HFP is the accurate listen + speak path.
-    @Published var useSynchronizedGlassesAudio: Bool = false
+    /// When glasses mic is selected, pull 16 kHz DAT PCM (far better than HFP for ASR).
+    @Published var useSynchronizedGlassesAudio: Bool = true
     @Published var configuredBackendURL: String = ""
 
     let glassesCoordinator: GlassesWearablesCoordinator
@@ -290,9 +290,10 @@ final class SessionCoordinator: ObservableObject {
         if useGlasses {
             do {
                 let forcePhoneMic = MicCapturePreference.preferPhoneMic
+                // Glasses mic mode → always request DAT PCM (16 kHz). Phone mic → video only.
                 try await glassesCoordinator.startGlassesCapture(
                     sessionStartClock: sessionStartMonotonic,
-                    enableSynchronizedGlassesAudio: useSynchronizedGlassesAudio && !forcePhoneMic
+                    enableSynchronizedGlassesAudio: !forcePhoneMic
                 )
             } catch {
                 captureSource = .iphone
@@ -314,8 +315,12 @@ final class SessionCoordinator: ObservableObject {
                 stopSession()
             }
         }
-        // Glasses DAT / camera init can steal the audio route — put phone mic back.
-        audioEngine.reassertPreferredMicIfNeeded()
+        // Glasses DAT / camera init can steal the audio route — put phone mic back hard.
+        if MicCapturePreference.preferPhoneMic {
+            audioEngine.applyMicPreference(preferPhoneMic: true, hasPairedGlasses: useGlasses)
+        } else {
+            audioEngine.reassertPreferredMicIfNeeded()
+        }
         statusLabel = "Listening · \(audioEngine.micStatusLine)"
     }
 

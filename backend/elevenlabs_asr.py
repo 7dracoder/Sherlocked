@@ -20,6 +20,7 @@ ELEVEN_STT_WS = "wss://api.elevenlabs.io/v1/speech-to-text/realtime"
 KEYTERMS = [
     "two truths and a lie",
     "two truths and one lie",
+    "let's play two truths and a lie",
     "story one",
     "story two",
     "story three",
@@ -29,8 +30,15 @@ KEYTERMS = [
     "first",
     "second",
     "third",
+    "firstly",
+    "secondly",
+    "thirdly",
     "the lie was",
+    "the lie is",
     "follow-up questions",
+    "ask me questions",
+    "I once",
+    "last summer",
 ]
 
 
