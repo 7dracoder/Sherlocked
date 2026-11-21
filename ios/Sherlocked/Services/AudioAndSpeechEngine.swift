@@ -72,10 +72,12 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         speechSynthesizer.delegate = self
         speechSynthesizer.usesApplicationAudioSession = true
         // Front person holds the phone → default to iPhone mic. Glasses mic is optional.
-        if UserDefaults.standard.object(forKey: "sherlocked_mic_source_v2") == nil {
-            UserDefaults.standard.set(true, forKey: "sherlocked_phone_mic")
-            UserDefaults.standard.set(true, forKey: "sherlocked_mic_source_v2")
+        if UserDefaults.standard.object(forKey: "sherlocked_mic_source_v3") == nil {
+            MicCapturePreference.preferPhoneMic = true
+            UserDefaults.standard.set(true, forKey: "sherlocked_mic_source_v3")
         }
+        usingGlassesMic = false
+        publishMicStatus()
         refreshAudioRoute(hasPairedGlasses: false)
         observeRouteAndInterruptions()
     }
@@ -321,9 +323,7 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         return
         #else
         // Default: iPhone mic (front person holds the phone). Glasses mic is opt-in.
-        let forcePhoneMic = UserDefaults.standard.bool(forKey: "sherlocked_phone_mic")
-        usingGlassesMic = hasPairedGlasses && !forcePhoneMic
-        micSourceLabel = usingGlassesMic ? "Glasses mic" : "iPhone mic"
+        applyMicPreferenceLocked(hasPairedGlasses: hasPairedGlasses)
         elevenASR.configure(backendBaseURL: backendBaseURL)
 
         // CRITICAL: do NOT enable allowBluetoothHFP while capturing on phone mic —
@@ -426,6 +426,42 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         applyPreferredMicInput(session: session)
         publishMicStatus()
     }
+
+    /// Live toggle: switch phone ↔ glasses mic and update the status line immediately.
+    func applyMicPreference(preferPhoneMic: Bool, hasPairedGlasses: Bool) {
+        MicCapturePreference.preferPhoneMic = preferPhoneMic
+        applyMicPreferenceLocked(hasPairedGlasses: hasPairedGlasses)
+        let session = AVAudioSession.sharedInstance()
+        do {
+            if usingGlassesMic {
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .videoRecording,
+                    options: [.allowBluetoothHFP, .mixWithOthers]
+                )
+            } else {
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .measurement,
+                    options: [.defaultToSpeaker, .mixWithOthers]
+                )
+            }
+            try session.setActive(true, options: [.notifyOthersOnDeactivation])
+        } catch {
+            print("[Sherlocked] mic preference apply failed: \(error.localizedDescription)")
+        }
+        applyPreferredMicInput(session: session)
+        refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
+        publishMicStatus()
+    }
+
+    private func applyMicPreferenceLocked(hasPairedGlasses: Bool) {
+        let forcePhoneMic = MicCapturePreference.preferPhoneMic
+        usingGlassesMic = hasPairedGlasses && !forcePhoneMic
+        micSourceLabel = usingGlassesMic ? "Glasses mic" : "iPhone mic"
+    }
+
+    var prefersGlassesMic: Bool { usingGlassesMic }
 
     private func applyPreferredMicInput(session: AVAudioSession) {
         if usingGlassesMic {

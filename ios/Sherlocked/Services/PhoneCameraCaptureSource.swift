@@ -68,6 +68,14 @@ final class PhoneCameraCaptureSource: NSObject, AVCaptureVideoDataOutputSampleBu
         for existing in captureSession.outputs { captureSession.removeOutput(existing) }
         if captureSession.canAddInput(input) { captureSession.addInput(input) }
         if captureSession.canAddOutput(output) { captureSession.addOutput(output) }
+        if let connection = output.connection(with: .video) {
+            if connection.isVideoOrientationSupported {
+                connection.videoOrientation = .portrait
+            }
+            if position == .front, connection.isVideoMirroringSupported {
+                connection.isVideoMirrored = true
+            }
+        }
         captureSession.commitConfiguration()
 
         sessionQueue.async { [weak self] in

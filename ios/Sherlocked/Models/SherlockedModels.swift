@@ -1,5 +1,25 @@
 import Foundation
 
+/// Phone mic is the default for front-speaker ASR. `UserDefaults.bool` is false when unset —
+/// never read the raw key without this helper or the UI will stick on "Glasses mic".
+enum MicCapturePreference {
+    static let phoneMicKey = "sherlocked_phone_mic"
+
+    static var preferPhoneMic: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: phoneMicKey) == nil { return true }
+            return UserDefaults.standard.bool(forKey: phoneMicKey)
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: phoneMicKey)
+        }
+    }
+
+    static var modeLabel: String {
+        preferPhoneMic ? "Phone mic" : "Glasses mic"
+    }
+}
+
 enum ActivityKind: String, Codable, CaseIterable, Sendable {
     case game = "two_truths_and_a_lie"
     case deal = "deal"

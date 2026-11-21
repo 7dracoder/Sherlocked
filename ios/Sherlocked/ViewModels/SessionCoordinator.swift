@@ -26,6 +26,7 @@ final class SessionCoordinator: ObservableObject {
     @Published private(set) var isAnalyzing: Bool = false
     @Published private(set) var latestPreviewImage: UIImage?
     @Published private(set) var effectiveFPS: Double = 0.0
+    @Published private(set) var faceStatusLine: String = "Face: idle"
     @Published private(set) var latestResponse: SessionAnalyzeResponseDTO?
     @Published private(set) var maskedComparisonResponse: SessionAnalyzeResponseDTO?
     @Published var onScreenCueBanner: String?
@@ -150,7 +151,7 @@ final class SessionCoordinator: ObservableObject {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 // Never mix DAT glasses PCM into recognition when the user forced iPhone mic.
-                if UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") { return }
+                if MicCapturePreference.preferPhoneMic { return }
                 self.audioEngine.consumeExternalGlassesPCM(pcm)
             }
         }
@@ -235,6 +236,7 @@ final class SessionCoordinator: ObservableObject {
         turnSequence = 0
         collectedFrames.removeAll()
         faceTracker.reset()
+        faceStatusLine = "Face: starting…"
 
         hasCameraDeliveredFirstFrame = false
         hasMicDeliveredFirstSample = false
@@ -242,6 +244,11 @@ final class SessionCoordinator: ObservableObject {
         detectedActivity = .unclear
         statusLabel = "Starting sensors..."
         isSessionActive = true
+        // Re-apply mic mode before capture so the status line matches the toggle.
+        audioEngine.applyMicPreference(
+            preferPhoneMic: MicCapturePreference.preferPhoneMic,
+            hasPairedGlasses: glassesCoordinator.hasEligibleGlasses && !forcePhoneFallback
+        )
 
         let useGlasses = glassesCoordinator.hasEligibleGlasses && !forcePhoneFallback
         captureSource = useGlasses ? .glasses : .iphone
@@ -282,7 +289,7 @@ final class SessionCoordinator: ObservableObject {
         // 2. Start Intended Camera Source (Glasses primary -> seamless iPhone camera fallback while keeping Glasses HFP audio!)
         if useGlasses {
             do {
-                let forcePhoneMic = UserDefaults.standard.bool(forKey: "sherlocked_phone_mic")
+                let forcePhoneMic = MicCapturePreference.preferPhoneMic
                 try await glassesCoordinator.startGlassesCapture(
                     sessionStartClock: sessionStartMonotonic,
                     enableSynchronizedGlassesAudio: useSynchronizedGlassesAudio && !forcePhoneMic
@@ -337,8 +344,48 @@ final class SessionCoordinator: ObservableObject {
         }
     }
 
+    /// Toggle phone ↔ glasses mic; applies immediately even mid-session.
+    func setPreferPhoneMic(_ preferPhone: Bool) {
+        MicCapturePreference.preferPhoneMic = preferPhone
+        let hasGlasses = glassesCoordinator.hasEligibleGlasses || captureSource == .glasses
+        audioEngine.applyMicPreference(preferPhoneMic: preferPhone, hasPairedGlasses: hasGlasses)
+        if isSessionActive {
+            // Remount the input tap on the newly preferred mic so ASR actually switches.
+            do {
+                try audioEngine.startLiveCapture(
+                    sessionID: sessionID,
+                    sessionStartMonotonic: sessionStartMonotonic,
+                    hasPairedGlasses: hasGlasses,
+                    onFirstAudioBuffer: { [weak self] in
+                        Task { @MainActor [weak self] in
+                            guard let self else { return }
+                            self.hasMicDeliveredFirstSample = true
+                            self.checkAndAnnounceReadyCue()
+                        }
+                    },
+                    onUtteranceCommitted: { [weak self] in
+                        Task { @MainActor [weak self] in
+                            self?.scheduleSpeechUpdate()
+                        }
+                    }
+                )
+            } catch {
+                recoveryBannerMessage = error.localizedDescription
+            }
+        }
+        statusLabel = isSessionActive
+            ? "Listening · \(audioEngine.micStatusLine)"
+            : "Mic mode · \(MicCapturePreference.modeLabel)"
+        objectWillChange.send()
+    }
+
     private func acceptFrame(_ sample: FrameSampleDTO) {
         effectiveFPS = (faceTracker.effectiveFPS * 10).rounded() / 10
+        if sample.face_visible {
+            faceStatusLine = "Face: tracking · \(sample.faces_detected) · usable=\(sample.usable ? "yes" : "soft")"
+        } else {
+            faceStatusLine = "Face: searching · flags=\(sample.quality_flags.prefix(2).joined(separator: ","))"
+        }
         collectedFrames.append(sample)
         if collectedFrames.count > 240 {
             collectedFrames.removeFirst(collectedFrames.count - 240)

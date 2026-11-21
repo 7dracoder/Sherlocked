@@ -84,10 +84,8 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
             }
         }
 
-        let request = VNDetectFaceLandmarksRequest()
-        let handler = VNImageRequestHandler(cgImage: cgImage, orientation: .up, options: [:])
-        try? handler.perform([request])
-        let observations = request.results ?? []
+        // Phone / glasses buffers arrive in mixed orientations; try until a face is found.
+        let (observations, _) = Self.detectFaces(cgImage: cgImage)
 
         if observations.isEmpty {
             let flags = softFlags + hardFlags
@@ -160,6 +158,28 @@ final class OnDeviceFaceTracker: @unchecked Sendable {
             blendshapes: metrics.channels,
             quality_flags: flags
         )
+    }
+
+    private static func detectFaces(
+        cgImage: CGImage
+    ) -> ([VNFaceObservation], CGImagePropertyOrientation) {
+        let orientations: [CGImagePropertyOrientation] = [
+            .up, .right, .left, .down, .upMirrored, .leftMirrored, .rightMirrored, .downMirrored,
+        ]
+        var best: [VNFaceObservation] = []
+        var bestOrientation: CGImagePropertyOrientation = .up
+        for orientation in orientations {
+            let request = VNDetectFaceLandmarksRequest()
+            let handler = VNImageRequestHandler(cgImage: cgImage, orientation: orientation, options: [:])
+            try? handler.perform([request])
+            let hits = request.results ?? []
+            if hits.count > best.count {
+                best = hits
+                bestOrientation = orientation
+            }
+            if !hits.isEmpty { break }
+        }
+        return (best, bestOrientation)
     }
 
     private static func computeLandmarkChannels(

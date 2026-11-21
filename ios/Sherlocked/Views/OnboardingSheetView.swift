@@ -6,7 +6,7 @@ struct OnboardingSheetView: View {
     @State private var backendURLDraft: String = ""
     @State private var backendSaveNote: String = ""
 
-    @AppStorage("sherlocked_phone_mic") private var usePhoneMic = true
+    @AppStorage(MicCapturePreference.phoneMicKey) private var usePhoneMic = true
 
     var body: some View {
         NavigationStack {
@@ -92,14 +92,22 @@ struct OnboardingSheetView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
-                        Toggle("Front-speaker mic: iPhone (recommended)", isOn: $usePhoneMic)
-                            .disabled(coordinator.isSessionActive)
-                            .accessibilityIdentifier("phone_mic_toggle")
+                        Toggle("Front-speaker mic: iPhone (recommended)", isOn: Binding(
+                            get: { usePhoneMic },
+                            set: { newValue in
+                                usePhoneMic = newValue
+                                coordinator.setPreferPhoneMic(newValue)
+                            }
+                        ))
+                        .accessibilityIdentifier("phone_mic_toggle")
                         Text(usePhoneMic
-                             ? "iPhone mic captures the person holding/near the phone. Transcription uses ElevenLabs. Glasses still get private speak-back."
-                             : "Glasses mic (HFP) listens to whoever is in front of you. Transcription still uses ElevenLabs.")
+                             ? "iPhone mic captures the person holding/near the phone. Glasses still get private speak-back."
+                             : "Glasses mic (HFP) listens to whoever is in front of you.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                        Text("Active: \(coordinator.audioEngine.micStatusLine)")
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.mint)
                         Button {
                             Task {
                                 let res = await coordinator.audioEngine.requestPermissions()

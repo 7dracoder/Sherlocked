@@ -3,6 +3,7 @@ import SwiftUI
 
 struct MainSessionView: View {
     @ObservedObject var coordinator: SessionCoordinator
+    @AppStorage(MicCapturePreference.phoneMicKey) private var preferPhoneMic = true
     @State private var selectedTab: Int = 0
 
     var body: some View {
@@ -122,21 +123,24 @@ struct MainSessionView: View {
                     Text(coordinator.audioEngine.micStatusLine)
                         .font(.caption2.monospaced())
                         .foregroundStyle(.primary)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
                         .accessibilityIdentifier("mic_source_label")
-                    Spacer()
-                    if !coordinator.isSessionActive {
-                        Toggle(isOn: Binding(
-                            get: { UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") },
-                            set: { UserDefaults.standard.set($0, forKey: "sherlocked_phone_mic") }
-                        )) {
-                            Text("Phone mic")
-                                .font(.caption2)
+                    Spacer(minLength: 4)
+                    Toggle(isOn: Binding(
+                        get: { preferPhoneMic },
+                        set: { newValue in
+                            preferPhoneMic = newValue
+                            coordinator.setPreferPhoneMic(newValue)
                         }
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .accessibilityLabel("Use iPhone mic for front speaker")
-                        .accessibilityIdentifier("live_phone_mic_toggle")
+                    )) {
+                        Text("Phone mic")
+                            .font(.caption2)
                     }
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .accessibilityLabel("Use iPhone mic for front speaker")
+                    .accessibilityIdentifier("live_phone_mic_toggle")
                 }
                 ProgressView(value: coordinator.audioEngine.micLevel)
                     .tint(coordinator.audioEngine.micLevel > 0.05 ? .green : .gray)
@@ -147,10 +151,15 @@ struct MainSessionView: View {
                         .foregroundStyle(.mint)
                         .accessibilityIdentifier("asr_provider_label")
                     Spacer()
-                    Text(UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") ? "Mode: Phone mic" : "Mode: Glasses mic")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    Text("Mode: \(preferPhoneMic ? "Phone mic" : "Glasses mic")")
+                        .font(.caption2.weight(.semibold))
+                        .foregroundStyle(preferPhoneMic ? .cyan : .orange)
+                        .accessibilityIdentifier("mic_mode_label")
                 }
+                Text(coordinator.faceStatusLine)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("face_status_label")
             }
 
             Text(coordinator.statusLabel)
@@ -248,6 +257,8 @@ struct MainSessionView: View {
                 if coordinator.effectiveFPS > 0 {
                     Text(String(format: "%.1f fps", coordinator.effectiveFPS))
                 }
+                Text(coordinator.faceStatusLine)
+                    .lineLimit(1)
             }
             .font(.caption2.monospaced())
             .padding(.horizontal, 10)
