@@ -167,6 +167,12 @@ final class SessionCoordinator: ObservableObject {
         audioEngine.$livePartialTranscript.sink { [weak self] _ in
             self?.objectWillChange.send()
         }.store(in: &cancellables)
+        audioEngine.$micStatusLine.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
+        audioEngine.$micLevel.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
         audioEngine.$recognitionIssue.sink { [weak self] message in
             // Soft ASR reconnect noise — don't block the live UI with it.
             if let message, message.contains("ElevenLabs reconnecting") {
@@ -301,6 +307,9 @@ final class SessionCoordinator: ObservableObject {
                 stopSession()
             }
         }
+        // Glasses DAT / camera init can steal the audio route — put phone mic back.
+        audioEngine.reassertPreferredMicIfNeeded()
+        statusLabel = "Listening · \(audioEngine.micStatusLine)"
     }
 
     private func startPhoneCameraFallback() async throws {
@@ -493,23 +502,36 @@ final class SessionCoordinator: ObservableObject {
             recoveryBannerMessage = reason
         }
 
-        // Enforce client-side + server-side idempotent result_id deduplication: never replay a private cue!
         guard isSessionActive, response.session_id == sessionID else { return }
+
         var cue = response.spoken_cue_text
         var key = response.result_id
-        if let guess = response.initial_guess, response.activity == .game,
-           response.updated_guess == nil, response.revealed_lie_story_number == nil {
-            // A previous response may have been lost after the server locked the guess.
-            cue = guess.spoken_whisper
-            if let story = response.stories.first(where: { $0.story_number == guess.chosen_story_number }) {
-                let opening = story.transcript.split(separator: " ").prefix(10).joined(separator: " ")
-                if !opening.isEmpty { cue = guess.spoken_whisper + " The one starting: " + opening }
+        var banner: String? = nil
+        if let guess = response.initial_guess, response.activity == .game {
+            let conf = Int((guess.confidence * 100).rounded())
+            banner = "Answer: Story #\(guess.chosen_story_number) is the lie (\(conf)%)."
+            statusLabel = "Guess locked · Story #\(guess.chosen_story_number)"
+            if response.updated_guess == nil, response.revealed_lie_story_number == nil {
+                cue = guess.spoken_whisper
+                if let story = response.stories.first(where: { $0.story_number == guess.chosen_story_number }) {
+                    let opening = story.transcript.split(separator: " ").prefix(10).joined(separator: " ")
+                    if !opening.isEmpty {
+                        cue = guess.spoken_whisper + " The one starting: " + opening
+                        banner = (banner ?? "") + " " + opening
+                    }
+                }
+                key = "\(sessionID)/\(response.activity_epoch)/initial"
             }
-            key = "\(sessionID)/\(response.activity_epoch)/initial"
+        } else if let deal = response.deal_output, deal.action == "whisper_question", let whisper = deal.spoken_whisper {
+            banner = "Deal cue: \(whisper)"
+            cue = cue ?? whisper
+        }
+
+        if let banner, !banner.isEmpty {
+            onScreenCueBanner = banner
         }
         guard let cue, !cue.isEmpty, deliveredResultIDs.insert(key).inserted else { return }
-        onScreenCueBanner = cue
-        // Always speak the locked guess / deal cue — do not silently drop when route detection flickers.
+        if onScreenCueBanner == nil { onScreenCueBanner = cue }
         _ = audioEngine.speakCuePrivatelyIfPermitted(cue, forceSpeak: true)
     }
 

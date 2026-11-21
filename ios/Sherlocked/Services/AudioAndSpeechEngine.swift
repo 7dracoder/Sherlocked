@@ -48,8 +48,11 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     private var targetASRFormat: AVAudioFormat?
     @Published private(set) var inputName = ""
     @Published private(set) var recognitionIssue: String?
-    @Published private(set) var asrProviderLabel: String = "ElevenLabs"
+    @Published private(set) var asrProviderLabel: String = "Apple + ElevenLabs"
     @Published private(set) var micSourceLabel: String = "iPhone mic"
+    /// Human-readable live mic diagnostics for the UI (intended vs actual route).
+    @Published private(set) var micStatusLine: String = "Mic: idle"
+    @Published private(set) var micLevel: Double = 0
 
     private var pairedGlassesHint: Bool = false
     private var usingGlassesMic: Bool = false
@@ -323,56 +326,47 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         micSourceLabel = usingGlassesMic ? "Glasses mic" : "iPhone mic"
         elevenASR.configure(backendBaseURL: backendBaseURL)
 
-        // Always allow HFP output for private speak-back, but force built-in mic when phone-mic mode.
-        try audioSession.setCategory(
-            .playAndRecord,
-            mode: usingGlassesMic ? .videoRecording : .default,
-            options: usingGlassesMic
-                ? [.allowBluetoothHFP, .mixWithOthers]
-                : [.allowBluetoothHFP, .defaultToSpeaker, .mixWithOthers]
-        )
-        try? audioSession.setPreferredSampleRate(16_000)
+        // CRITICAL: do NOT enable allowBluetoothHFP while capturing on phone mic —
+        // HFP steals the input route to the glasses and kills front-speaker ASR.
+        // HFP is enabled only during private speak-back.
+        if usingGlassesMic {
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .videoRecording,
+                options: [.allowBluetoothHFP, .mixWithOthers]
+            )
+        } else {
+            try audioSession.setCategory(
+                .playAndRecord,
+                mode: .measurement,
+                options: [.defaultToSpeaker, .mixWithOthers]
+            )
+        }
+        try? audioSession.setPreferredSampleRate(44_100)
         try? audioSession.setPreferredIOBufferDuration(0.02)
         try audioSession.setActive(true, options: [.notifyOthersOnDeactivation])
-
-        if usingGlassesMic {
-            if let hfp = audioSession.availableInputs?.first(where: {
-                $0.portType == .bluetoothHFP
-                    || $0.portName.localizedCaseInsensitiveContains("Ray-Ban")
-                    || $0.portName.localizedCaseInsensitiveContains("RB Meta")
-                    || $0.portName.localizedCaseInsensitiveContains("Meta")
-            }) {
-                try? audioSession.setPreferredInput(hfp)
-            }
-        } else if let builtIn = audioSession.availableInputs?.first(where: { $0.portType == .builtInMic }) {
-            try audioSession.setPreferredInput(builtIn)
-            // Prefer bottom/front mic for the person facing/holding the phone.
-            if let bottom = builtIn.dataSources?.first(where: {
-                $0.orientation == .bottom || $0.orientation == .front
-            }) ?? builtIn.dataSources?.first {
-                try? builtIn.setPreferredDataSource(bottom)
-            }
-        }
+        applyPreferredMicInput(session: audioSession)
         refreshAudioRoute(hasPairedGlasses: hasPairedGlasses)
-        inputName = audioSession.currentRoute.inputs.first?.portName ?? inputName
+        publishMicStatus()
 
         let freshEngine = AVAudioEngine()
         self.audioEngine = freshEngine
         let inputNode = freshEngine.inputNode
+        // Use the node's native format for Apple Speech — resampling breaks recognition.
         let hwFormat = inputNode.inputFormat(forBus: 0)
         guard hwFormat.sampleRate > 0 && hwFormat.channelCount > 0 else {
-            throw NSError(domain: "SherlockedAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available."])
+            throw NSError(domain: "SherlockedAudio", code: 1, userInfo: [NSLocalizedDescriptionKey: "No microphone input is available. Check Mic permission and that nothing else is using the mic."])
         }
         guard speechRecognizer?.isAvailable == true else {
             throw NSError(domain: "SherlockedSpeech", code: 1, userInfo: [NSLocalizedDescriptionKey: "English speech recognition is unavailable."])
         }
 
-        // 16 kHz mono for Apple Speech + ElevenLabs chunks.
-        let asrFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
+        // Separate 16 kHz mono path only for ElevenLabs chunks.
+        let elevenFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)
             ?? hwFormat
-        targetASRFormat = asrFormat
-        if hwFormat.sampleRate != asrFormat.sampleRate || hwFormat.channelCount != asrFormat.channelCount {
-            converter = AVAudioConverter(from: hwFormat, to: asrFormat)
+        targetASRFormat = elevenFormat
+        if hwFormat.sampleRate != elevenFormat.sampleRate || hwFormat.channelCount != elevenFormat.channelCount {
+            converter = AVAudioConverter(from: hwFormat, to: elevenFormat)
         } else {
             converter = nil
         }
@@ -384,7 +378,6 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         pcmHasSpeechEnergy = false
         pcmLock.unlock()
 
-        // Apple Speech always runs for instant partials so UI never sticks on "Waiting for speech".
         beginRecognition()
 
         let converter = self.converter
@@ -392,15 +385,17 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         Self.installDualASRAudioTap(
             on: inputNode,
             format: hwFormat,
-            asrFormat: asrFormat,
+            elevenFormat: elevenFormat,
             converter: converter,
             input: speechInput
-        ) { [weak self] pcm16 in
+        ) { [weak self] pcm16, level in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.micLevel = level
                 if !self.isMicrophoneFlowing {
                     self.isMicrophoneFlowing = true
                     self.onFirstAudioDelivered?()
+                    self.publishMicStatus()
                 }
                 self.enqueuePCM16ForElevenLabs(pcm16)
             }
@@ -409,17 +404,56 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         tapInstalled = true
         freshEngine.prepare()
         try freshEngine.start()
+        publishMicStatus()
 
-        // Periodic ElevenLabs flush even if chunk size is under threshold (end of phrases).
         elevenFlushTask?.cancel()
         elevenFlushTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(1600))
+                try? await Task.sleep(for: .milliseconds(1400))
                 guard !Task.isCancelled else { return }
-                await MainActor.run { self?.flushElevenLabsChunk() }
+                await MainActor.run {
+                    self?.reassertPreferredMicIfNeeded()
+                    self?.flushElevenLabsChunk()
+                }
             }
         }
         #endif
+    }
+
+    /// Call after glasses camera starts — Meta session can steal the audio route.
+    func reassertPreferredMicIfNeeded() {
+        let session = AVAudioSession.sharedInstance()
+        applyPreferredMicInput(session: session)
+        publishMicStatus()
+    }
+
+    private func applyPreferredMicInput(session: AVAudioSession) {
+        if usingGlassesMic {
+            if let hfp = session.availableInputs?.first(where: {
+                $0.portType == .bluetoothHFP
+                    || $0.portName.localizedCaseInsensitiveContains("Ray-Ban")
+                    || $0.portName.localizedCaseInsensitiveContains("RB Meta")
+                    || $0.portName.localizedCaseInsensitiveContains("Meta")
+            }) {
+                try? session.setPreferredInput(hfp)
+            }
+        } else if let builtIn = session.availableInputs?.first(where: { $0.portType == .builtInMic }) {
+            try? session.setPreferredInput(builtIn)
+            if let bottom = builtIn.dataSources?.first(where: {
+                $0.orientation == .bottom || $0.orientation == .front
+            }) ?? builtIn.dataSources?.first {
+                try? builtIn.setPreferredDataSource(bottom)
+            }
+        }
+        inputName = session.currentRoute.inputs.first.map { "\($0.portName) (\($0.portType.rawValue))" } ?? "none"
+    }
+
+    private func publishMicStatus() {
+        let intended = usingGlassesMic ? "Glasses mic" : "iPhone mic"
+        micSourceLabel = intended
+        let actual = inputName.isEmpty ? "unknown" : inputName
+        let flowing = isMicrophoneFlowing ? "live" : "waiting"
+        micStatusLine = "Mic: \(intended) → \(actual) · \(flowing) · lvl \(String(format: "%.0f", micLevel * 100))%"
     }
 
     private func beginRecognition() {
@@ -429,9 +463,9 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.addsPunctuation = true
-        // Cloud ASR + spoken-audio hint works better for glasses HFP / distant talkers.
+        // Prefer on-device first for reliability; cloud can fail silently on bad networks.
         if #available(iOS 16.0, *) {
-            request.requiresOnDeviceRecognition = false
+            request.requiresOnDeviceRecognition = true
         }
         request.taskHint = .dictation
         request.contextualStrings = [
@@ -510,18 +544,33 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     nonisolated private static func installDualASRAudioTap(
         on inputNode: AVAudioInputNode,
         format: AVAudioFormat,
-        asrFormat: AVAudioFormat,
+        elevenFormat: AVAudioFormat,
         converter: AVAudioConverter?,
         input: SpeechInput,
-        onPCM16: @escaping @Sendable (Data) -> Void
+        onPCM16: @escaping @Sendable (Data, Double) -> Void
     ) {
         inputNode.installTap(onBus: 0, bufferSize: 2048, format: format) { buffer, _ in
             guard buffer.frameLength > 0 else { return }
-            let floatBuf: AVAudioPCMBuffer
+            // Apple Speech MUST get the native hardware buffers (no resample).
+            input.append(buffer)
+
+            var level = 0.0
+            if let channels = buffer.floatChannelData {
+                let frames = Int(buffer.frameLength)
+                var sum = 0.0
+                let step = max(1, frames / 64)
+                for i in stride(from: 0, to: frames, by: step) {
+                    sum += abs(Double(channels[0][i]))
+                }
+                level = min(1.0, (sum / Double(max(1, frames / step))) * 4.0)
+            }
+
+            // ElevenLabs path: optional resample to 16 kHz mono PCM16.
+            let elevenBuf: AVAudioPCMBuffer
             if let converter {
-                let ratio = asrFormat.sampleRate / format.sampleRate
+                let ratio = elevenFormat.sampleRate / format.sampleRate
                 let outFrames = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 32
-                guard let out = AVAudioPCMBuffer(pcmFormat: asrFormat, frameCapacity: outFrames) else { return }
+                guard let out = AVAudioPCMBuffer(pcmFormat: elevenFormat, frameCapacity: outFrames) else { return }
                 var error: NSError?
                 var consumed = false
                 converter.convert(to: out, error: &error) { _, status in
@@ -534,14 +583,12 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
                     return buffer
                 }
                 guard error == nil, out.frameLength > 0 else { return }
-                floatBuf = out
+                elevenBuf = out
             } else {
-                floatBuf = buffer
+                elevenBuf = buffer
             }
-            // Apple Speech gets float buffers immediately for live partials.
-            input.append(floatBuf)
-            if let pcm = Self.floatBufferToPCM16Data(floatBuf) {
-                onPCM16(pcm)
+            if let pcm = Self.floatBufferToPCM16Data(elevenBuf) {
+                onPCM16(pcm, level)
             }
         }
     }
@@ -656,13 +703,40 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     }
 
     func consumeSpeechSnapshot(_ result: SpeechSnapshot) {
+        let normalizedFormatted = Self.normalizeFrontSpeakerASR(result.formattedString)
+        // Always update the live UI text — even when word timestamps are missing.
+        if !normalizedFormatted.isEmpty {
+            livePartialTranscript = (completedUtterances.map(\.text) + [normalizedFormatted])
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+        }
+
         let segments = result.segments
-        guard let first = segments.first else { return }
+        guard let first = segments.first else {
+            // No timestamps yet — still commit plain text so analysis can run.
+            if result.isFinal, !normalizedFormatted.isEmpty {
+                let now = max(0, CACurrentMediaTime() - sessionStartClock)
+                let start = utterances.last?.end_sec ?? max(0, now - 1.0)
+                var rebuilt = completedUtterances
+                rebuilt.append(
+                    UtteranceSegmentDTO(
+                        segment_id: String(format: "utt_%03d", rebuilt.count + 1),
+                        text: normalizedFormatted,
+                        start_sec: (start * 100).rounded() / 100,
+                        end_sec: (now * 100).rounded() / 100,
+                        pause_before_sec: 0.2,
+                        speech_rate_wps: Double(normalizedFormatted.split(separator: " ").count) / max(0.2, now - start)
+                    )
+                )
+                utterances = rebuilt
+                completedUtterances = rebuilt
+                onUtteranceUpdated?()
+            }
+            return
+        }
         if let last = utterances.last, first.timestamp + offset >= last.end_sec + 0.15 {
             completedUtterances = utterances
         }
-        let normalizedFormatted = Self.normalizeFrontSpeakerASR(result.formattedString)
-        livePartialTranscript = (completedUtterances.map(\.text) + [normalizedFormatted]).joined(separator: " ")
 
         var currentWords: [WordTimestampDTO] = []
         var clauseStart: Double?
@@ -769,19 +843,14 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     private func prepareSessionForPlayback(preferGlasses: Bool) {
         let session = AVAudioSession.sharedInstance()
         do {
-            if preferGlasses {
-                try session.setCategory(
-                    .playAndRecord,
-                    mode: .videoRecording,
-                    options: [.allowBluetoothHFP, .mixWithOthers]
-                )
-            } else {
-                try session.setCategory(
-                    .playAndRecord,
-                    mode: .default,
-                    options: [.allowBluetoothA2DP, .allowBluetoothHFP, .defaultToSpeaker, .mixWithOthers]
-                )
-            }
+            // Enable HFP only for speak-back so glasses ear gets the cue.
+            try session.setCategory(
+                .playAndRecord,
+                mode: preferGlasses ? .voiceChat : .default,
+                options: preferGlasses
+                    ? [.allowBluetoothHFP, .mixWithOthers]
+                    : [.defaultToSpeaker, .mixWithOthers]
+            )
             try session.setActive(true)
         } catch {
             print("[Sherlocked] playback session prep failed: \(error.localizedDescription)")
@@ -792,6 +861,22 @@ final class AudioAndSpeechEngine: NSObject, ObservableObject, AVSpeechSynthesize
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
         let ports = AVAudioSession.sharedInstance().currentRoute.outputs.map { "\($0.portName):\($0.portType.rawValue)" }
         print("[Sherlocked] speech playback started on \(ports)")
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            // Restore phone-mic capture route after private HFP speak-back.
+            guard let self, !self.usingGlassesMic else { return }
+            let session = AVAudioSession.sharedInstance()
+            try? session.setCategory(
+                .playAndRecord,
+                mode: .measurement,
+                options: [.defaultToSpeaker, .mixWithOthers]
+            )
+            try? session.setActive(true)
+            self.applyPreferredMicInput(session: session)
+            self.publishMicStatus()
+        }
     }
 
     func stopCapture() {

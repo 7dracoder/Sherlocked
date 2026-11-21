@@ -115,30 +115,41 @@ struct MainSessionView: View {
                     .accessibilityIdentifier("readonly_activity_indicator")
             }
 
-            HStack(spacing: 8) {
-                Label(coordinator.audioEngine.micSourceLabel, systemImage: "mic.fill")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("mic_source_label")
-                Text("·")
-                    .foregroundStyle(.secondary)
-                Label(coordinator.audioEngine.asrProviderLabel, systemImage: "waveform")
-                    .font(.caption2)
-                    .foregroundStyle(.mint)
-                    .accessibilityIdentifier("asr_provider_label")
-                Spacer()
-                if !coordinator.isSessionActive {
-                    Toggle(isOn: Binding(
-                        get: { UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") },
-                        set: { UserDefaults.standard.set($0, forKey: "sherlocked_phone_mic") }
-                    )) {
-                        Text("Phone mic")
-                            .font(.caption2)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: "mic.fill")
+                        .foregroundStyle(coordinator.audioEngine.isMicrophoneFlowing ? Color.green : Color.orange)
+                    Text(coordinator.audioEngine.micStatusLine)
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("mic_source_label")
+                    Spacer()
+                    if !coordinator.isSessionActive {
+                        Toggle(isOn: Binding(
+                            get: { UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") },
+                            set: { UserDefaults.standard.set($0, forKey: "sherlocked_phone_mic") }
+                        )) {
+                            Text("Phone mic")
+                                .font(.caption2)
+                        }
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .accessibilityLabel("Use iPhone mic for front speaker")
+                        .accessibilityIdentifier("live_phone_mic_toggle")
                     }
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-                    .accessibilityLabel("Use iPhone mic for front speaker")
-                    .accessibilityIdentifier("live_phone_mic_toggle")
+                }
+                ProgressView(value: coordinator.audioEngine.micLevel)
+                    .tint(coordinator.audioEngine.micLevel > 0.05 ? .green : .gray)
+                    .accessibilityIdentifier("mic_level_meter")
+                HStack {
+                    Label(coordinator.audioEngine.asrProviderLabel, systemImage: "waveform")
+                        .font(.caption2)
+                        .foregroundStyle(.mint)
+                        .accessibilityIdentifier("asr_provider_label")
+                    Spacer()
+                    Text(UserDefaults.standard.bool(forKey: "sherlocked_phone_mic") ? "Mode: Phone mic" : "Mode: Glasses mic")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
                 }
             }
 
@@ -290,17 +301,27 @@ struct MainSessionView: View {
 
             if coordinator.isSessionActive || !coordinator.audioEngine.livePartialTranscript.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(
-                        "Live Transcript · "
-                        + (coordinator.audioEngine.inputName.isEmpty
-                           ? (coordinator.captureSource == .glasses ? "Ray-Ban Meta mic" : "Waiting for mic")
-                           : coordinator.audioEngine.inputName)
-                    )
+                    Text("Live Transcript · \(coordinator.audioEngine.micSourceLabel)")
                         .font(.caption2.weight(.bold))
                         .foregroundStyle(.secondary)
-                    Text(coordinator.audioEngine.livePartialTranscript.isEmpty ? "Waiting for speech…" : coordinator.audioEngine.livePartialTranscript)
+                    Text(coordinator.audioEngine.inputName.isEmpty ? "Input route: waiting…" : "Input route: \(coordinator.audioEngine.inputName)")
+                        .font(.caption2.monospaced())
+                        .foregroundStyle(.secondary)
+                    Text(coordinator.audioEngine.livePartialTranscript.isEmpty ? "Waiting for speech… (speak into the phone)" : coordinator.audioEngine.livePartialTranscript)
                         .font(.footnote)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("live_transcript_text")
+                    if coordinator.isAnalyzing {
+                        Text("Scoring stories…")
+                            .font(.caption2)
+                            .foregroundStyle(.orange)
+                    }
+                    if let guess = coordinator.latestResponse?.initial_guess {
+                        Text("Model answer: Story #\(guess.chosen_story_number) is the lie (\(Int((guess.confidence * 100).rounded()))%)")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.mint)
+                            .accessibilityIdentifier("model_answer_label")
+                    }
                 }
                 .padding(10)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
